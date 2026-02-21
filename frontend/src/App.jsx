@@ -31,7 +31,7 @@ function App() {
     return () => clearInterval(interval);
   }, []);
 
-  // ─── CSV Upload ──────────────────────────────────────────────────────────
+  // ─── CSV Upload ──────────────────────────────────────────────────────
   const handleFile = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -64,7 +64,7 @@ function App() {
     }
   };
 
-  // ─── Sample Data ─────────────────────────────────────────────────────────
+  // ─── Sample Data ─────────────────────────────────────────────────────
   const loadSample = () => {
     const csv = `date,item,category,price,cost,quantity
 2026-01-01,Flat White,Coffee,5.50,1.20,45
@@ -104,6 +104,15 @@ function App() {
 
   const s = results?.metrics?.summary;
 
+  const POS_LABELS = {
+    square: 'Square POS',
+    lightspeed: 'Lightspeed POS',
+    toast: 'Toast POS',
+    clover: 'Clover POS',
+    shopify: 'Shopify POS',
+    generic: 'Custom CSV',
+  };
+
   return (
     <div className="min-h-screen bg-dark-900">
       {/* Nav */}
@@ -130,8 +139,15 @@ function App() {
             </span>
           </h1>
           <p className="text-gray-400 text-base sm:text-lg max-w-xl">
-            Upload your sales data. Get instant P&L analysis, margin breakdowns, and AI-powered recommendations to boost profit.
+            Upload your sales data from any POS system. Get instant P&L analysis, margin breakdowns, and AI-powered recommendations to boost profit.
           </p>
+          <div className="flex flex-wrap gap-2 mt-4">
+            {['Square', 'Lightspeed', 'Toast', 'Clover', 'Shopify', 'Custom CSV'].map((pos) => (
+              <span key={pos} className="text-[11px] bg-dark-700/80 text-gray-400 px-2.5 py-1 rounded-lg border border-dark-600/30">
+                {pos}
+              </span>
+            ))}
+          </div>
         </div>
 
         {/* Tabs */}
@@ -155,7 +171,8 @@ function App() {
         {/* Upload Tab */}
         {activeTab === 'upload' && (
           <div className="bg-dark-800 border border-dark-600/50 rounded-2xl p-6 md:p-8">
-            <h2 className="text-xl font-semibold mb-6">Upload Cafe Data</h2>
+            <h2 className="text-xl font-semibold mb-2">Upload Cafe Data</h2>
+            <p className="text-sm text-gray-500 mb-6">Export a CSV from your POS system and upload it here. We auto-detect the format.</p>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
               <div>
@@ -188,16 +205,26 @@ function App() {
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3 mb-5">
               <button
                 onClick={loadSample}
                 className="bg-amber-600 hover:bg-amber-500 text-black font-semibold px-6 py-3 rounded-xl transition-all"
               >
                 ▶ Try with Sample Data
               </button>
-              <span className="text-xs text-gray-500">
-                CSV columns: date, item, category, price, cost, quantity
-              </span>
+            </div>
+
+            {/* POS Export Guide */}
+            <div className="bg-dark-700/40 border border-dark-600/30 rounded-xl p-4">
+              <p className="text-xs font-semibold text-gray-400 mb-2">📋 How to export from your POS:</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1 text-[11px] text-gray-500">
+                <span><strong className="text-gray-400">Square:</strong> Reports → Sales → Export CSV (Items Detail)</span>
+                <span><strong className="text-gray-400">Lightspeed:</strong> Reports → Sales → Export to CSV</span>
+                <span><strong className="text-gray-400">Toast:</strong> Reports → Sales Summary → Download CSV</span>
+                <span><strong className="text-gray-400">Clover:</strong> Sales → Transactions → Export</span>
+                <span><strong className="text-gray-400">Shopify:</strong> Analytics → Reports → Export CSV</span>
+                <span><strong className="text-gray-400">Other:</strong> Any CSV with item, sales, quantity columns</span>
+              </div>
             </div>
 
             {loading && (
@@ -219,6 +246,22 @@ function App() {
         {/* Report Tab */}
         {activeTab === 'report' && results && (
           <div className="space-y-6">
+            {/* Detected Format Banner */}
+            {results.pos_format_detected && (
+              <div className="flex items-center gap-2 bg-dark-800/60 border border-dark-600/30 rounded-xl px-4 py-2.5">
+                <span className="text-sm">🔌</span>
+                <span className="text-sm text-gray-300">
+                  Detected: <strong className="text-white">{POS_LABELS[results.pos_format_detected] || results.pos_format_detected}</strong>
+                </span>
+                <span className="text-xs text-gray-500 ml-auto">{results.rows_processed} rows processed</span>
+                {!results.metrics.summary.total_cogs && (
+                  <span className="text-[10px] bg-amber-500/10 text-amber-400 px-2 py-0.5 rounded-md">
+                    Tip: Add cost data for margin analysis
+                  </span>
+                )}
+              </div>
+            )}
+
             {/* KPI Cards */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <KPI label="Revenue" value={`$${s.total_revenue.toLocaleString()}`} />
@@ -335,8 +378,13 @@ function App() {
             <div className="prose prose-invert max-w-none whitespace-pre-wrap text-sm leading-relaxed text-gray-300">
               {results.ai_recommendations}
             </div>
-            <div className="mt-6 text-xs text-gray-600">
-              Analyzed {results.rows_processed} rows · {results.analyzed_at}
+            <div className="mt-6 flex flex-wrap items-center gap-3 text-xs text-gray-600">
+              <span>Analyzed {results.rows_processed} rows · {results.analyzed_at}</span>
+              {results.pos_format_detected && (
+                <span className="bg-dark-700 text-gray-400 px-2 py-0.5 rounded-md">
+                  Format: {POS_LABELS[results.pos_format_detected] || results.pos_format_detected}
+                </span>
+              )}
             </div>
           </div>
         )}
@@ -357,7 +405,7 @@ function App() {
   );
 }
 
-// ─── Sub-components ──────────────────────────────────────────────────────────
+// ─── Sub-components ──────────────────────────────────────────────────────
 
 function KPI({ label, value, sub, color }) {
   const colors = { gain: 'text-gain', loss: 'text-loss', accent: 'text-amber-400' };

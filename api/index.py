@@ -2,10 +2,14 @@
 AI Cafe Analyst — Serverless API
 Python stdlib only (no pip dependencies) for Vercel compatibility.
 Groq AI (Llama 3.3 70B) for free financial recommendations.
+Supports: Square POS, Lightspeed POS, Toast, Clover, Shopify POS, and generic CSV.
 """
 
 import json
 import os
+import csv
+import io
+import re
 import urllib.request
 import urllib.error
 from http.server import BaseHTTPRequestHandler
@@ -15,12 +19,237 @@ GROQ_API_KEY = os.environ.get('GROQ_API_KEY', '')
 GROQ_MODEL = 'llama-3.3-70b-versatile'
 
 
+# ─── POS Format Detection & Normalization ────────────────────────────────────
+
+# Column name mappings for each POS system
+# Maps POS-specific column names -> our internal field names
+POS_COLUMN_MAPS = {
+    'square': {
+        # Square "Items Detail" / "Transaction" CSV export
+        'item': ['item', 'item_name'],
+        'category': ['category'],
+        'quantity': ['qty', 'quantity'],
+        'gross_revenue': ['gross_sales', 'gross_revenue'],
+        'net_revenue': ['net_sales', 'net_revenue'],
+        'discount': ['discounts', 'discount', 'discount_amount'],
+        'tax': ['tax', 'tax_amount'],
+        'cost': ['cost', 'cogs', 'cost_of_goods'],
+        'date': ['date', 'transaction_date'],
+        'time': ['time', 'transaction_time'],
+        'transaction_id': ['transaction_id', 'receipt_number', 'payment_id'],
+        'sku': ['sku', 'item_sku'],
+        'modifiers': ['modifiers', 'modifier'],
+        'variation': ['variation', 'item_variation'],
+    },
+    'lightspeed': {
+        # Lightspeed Restaurant / Retail CSV export
+        'item': ['product', 'product_name', 'item', 'description', 'item_name', 'menu_item'],
+        'category': ['category', 'product_category', 'department', 'group'],
+        'quantity': ['quantity', 'qty', 'quantity_sold', 'units_sold', 'count'],
+        'gross_revenue': ['revenue', 'total_revenue', 'sales', 'total_sales', 'amount', 'total'],
+        'cost': ['cost', 'cost_of_goods', 'cogs', 'total_cost', 'cost_price', 'unit_cost'],
+        'gross_profit': ['gross_profit', 'profit', 'margin'],
+        'date': ['date', 'sale_date', 'order_date', 'transaction_date', 'completed_at'],
+        'sku': ['sku', 'product_sku', 'barcode', 'upc'],
+        'supplier': ['supplier', 'vendor'],
+    },
+    'toast': {
+        # Toast POS CSV export
+        'item': ['menu_item', 'item', 'item_name', 'product'],
+        'category': ['menu_group', 'category', 'menu_category', 'group'],
+        'quantity': ['qty', 'quantity', 'count'],
+        'gross_revenue': ['gross_amount', 'gross_sales', 'amount', 'total'],
+        'net_revenue': ['net_amount', 'net_sales'],
+        'discount': ['discount', 'discount_amount', 'promo'],
+        'tax': ['tax', 'tax_amount'],
+        'cost': ['cost', 'food_cost', 'cogs'],
+        'date': ['date', 'order_date', 'business_date', 'opened'],
+        'order_id': ['order_id', 'order_number', 'check_number'],
+        'server': ['server', 'employee', 'staff'],
+    },
+    'clover': {
+        # Clover POS CSV export
+        'item': ['item_name', 'item', 'product_name', 'name'],
+        'category': ['category', 'labels', 'item_group'],
+        'quantity': ['quantity', 'qty', 'unit_qty'],
+        'gross_revenue': ['total', 'amount', 'price', 'revenue', 'gross_sales'],
+        'discount': ['discount', 'discounts'],
+        'tax': ['tax', 'tax_amount'],
+        'cost': ['cost', 'item_cost'],
+        'date': ['date', 'created_time', 'order_date'],
+        'order_id': ['order_id', 'order_number'],
+    },
+    'shopify': {
+        # Shopify POS CSV export
+        'item': ['lineitem_name', 'product', 'title', 'item', 'lineitem_sku'],
+        'category': ['product_type', 'type', 'category', 'vendor'],
+        'quantity': ['lineitem_quantity', 'quantity', 'qty'],
+        'gross_revenue': ['total', 'subtotal', 'lineitem_price', 'amount'],
+        'discount': ['discount_amount', 'discount_code', 'discounts'],
+        'tax': ['tax', 'taxes', 'tax_amount'],
+        'cost': ['lineitem_compare_at_price', 'cost', 'cogs'],
+        'date': ['created_at', 'date', 'order_date', 'processed_at'],
+        'order_id': ['name', 'order_number', 'order_id'],
+    },
+    'generic': {
+        # Fallback — any custom CSV
+        'item': ['item', 'product', 'item_name', 'product_name', 'menu_item', 'name', 'description'],
+        'category': ['category', 'type', 'group', 'department', 'menu_group'],
+        'quantity': ['quantity', 'qty', 'units_sold', 'count', 'unit_qty'],
+        'price_per_unit': ['price', 'sale_price', 'selling_price', 'unit_price'],
+        'gross_revenue': ['revenue', 'amount', 'total', 'gross_sales', 'net_sales', 'sales'],
+        'cost': ['cost', 'cogs', 'cost_price', 'unit_cost', 'cost_of_goods'],
+        'date': ['date', 'order_date', 'transaction_date', 'day', 'sale_date'],
+    },
+}
+
+
+def detect_pos_format(headers):
+    """Auto-detect which POS system exported this CSV based on column names."""
+    h_lower = {h.strip().lower().replace(' ', '_') for h in headers}
+
+    # Square: has 'gross_sales' + 'net_sales' columns (very distinctive)
+    if h_lower & {'gross_sales', 'net_sales'}:
+        return 'square'
+
+    # Toast: has 'menu_item' or 'menu_group' + ('gross_amount' or 'net_amount')
+    if ('menu_item' in h_lower or 'menu_group' in h_lower) and h_lower & {'gross_amount', 'net_amount', 'business_date'}:
+        return 'toast'
+
+    # Shopify: has 'lineitem_name' or 'lineitem_quantity' (very distinctive)
+    if h_lower & {'lineitem_name', 'lineitem_quantity', 'lineitem_price'}:
+        return 'shopify'
+
+    # Clover: has 'created_time' or 'unit_qty' or 'labels'
+    if h_lower & {'created_time', 'unit_qty', 'labels'}:
+        return 'clover'
+
+    # Lightspeed: has 'product' or 'product_name' + 'cost_of_goods' or 'quantity_sold'
+    if h_lower & {'cost_of_goods', 'quantity_sold', 'product_category'}:
+        return 'lightspeed'
+    if 'product' in h_lower and h_lower & {'revenue', 'total_revenue', 'gross_profit'}:
+        return 'lightspeed'
+
+    return 'generic'
+
+
+def normalize_row(row, pos_format):
+    """
+    Normalize a POS row into our standard internal format:
+    { item, category, quantity, revenue (total, not per-unit), cost (total), date }
+
+    Key insight: Square/Lightspeed/Toast export TOTAL revenue per line
+    (already multiplied by qty), while generic CSVs may have per-unit price.
+    """
+    col_map = POS_COLUMN_MAPS.get(pos_format, POS_COLUMN_MAPS['generic'])
+
+    item = _flex_str(row, col_map.get('item', []))
+    category = _flex_str(row, col_map.get('category', []))
+    qty = _flex_num(row, col_map.get('quantity', [])) or 1
+    date = _flex_str(row, col_map.get('date', []))
+
+    # --- Revenue calculation (handle POS-specific logic) ---
+    gross_rev = _flex_num(row, col_map.get('gross_revenue', []))
+    net_rev = _flex_num(row, col_map.get('net_revenue', []))
+    discount = abs(_flex_num(row, col_map.get('discount', [])))
+    per_unit_price = _flex_num(row, col_map.get('price_per_unit', []))
+
+    if pos_format == 'square':
+        # Square: Net Sales = Gross Sales - Discounts (already totals, use Net Sales)
+        revenue = net_rev if net_rev else (gross_rev - discount)
+    elif pos_format in ('toast', 'clover', 'shopify'):
+        # These POS systems export total amounts per line
+        revenue = net_rev if net_rev else (gross_rev - discount)
+    elif pos_format == 'lightspeed':
+        # Lightspeed exports total revenue per line
+        revenue = gross_rev
+    else:
+        # Generic: check if there's a per-unit price OR a total revenue
+        if per_unit_price > 0:
+            revenue = per_unit_price * qty  # per-unit → multiply by qty
+        elif gross_rev > 0:
+            revenue = gross_rev  # already a total
+        else:
+            revenue = 0
+
+    # --- Cost calculation ---
+    cost_total = _flex_num(row, col_map.get('cost', []))
+    gross_profit_val = _flex_num(row, col_map.get('gross_profit', []))
+
+    if pos_format in ('square', 'toast', 'clover', 'shopify', 'lightspeed'):
+        # POS costs are typically total cost for the line
+        if cost_total > 0:
+            cost = cost_total
+        elif gross_profit_val and revenue:
+            # Lightspeed sometimes gives gross_profit instead of cost
+            cost = revenue - gross_profit_val
+        else:
+            cost = 0
+    else:
+        # Generic: could be per-unit cost
+        if per_unit_price > 0 and cost_total > 0 and cost_total < per_unit_price:
+            # Likely per-unit cost (it's smaller than per-unit price)
+            cost = cost_total * qty
+        else:
+            cost = cost_total if cost_total > 0 else 0
+
+    # Ensure revenue is positive (some POS exports refunds as negative)
+    if revenue < 0:
+        revenue = 0
+        cost = 0
+        qty = 0
+
+    # Normalize date format
+    date = _normalize_date(date)
+
+    return {
+        'item': item,
+        'category': category,
+        'quantity': qty,
+        'revenue': revenue,
+        'cost': cost,
+        'date': date,
+    }
+
+
+def _normalize_date(date_str):
+    """Try to normalize various date formats to YYYY-MM-DD."""
+    if not date_str:
+        return ''
+
+    # Already in YYYY-MM-DD
+    if re.match(r'^\d{4}-\d{2}-\d{2}', date_str):
+        return date_str[:10]
+
+    # MM/DD/YYYY or M/D/YYYY (US format — Square, Toast)
+    m = re.match(r'^(\d{1,2})/(\d{1,2})/(\d{4})', date_str)
+    if m:
+        return f"{m.group(3)}-{m.group(1).zfill(2)}-{m.group(2).zfill(2)}"
+
+    # DD/MM/YYYY (international)
+    m = re.match(r'^(\d{1,2})-(\d{1,2})-(\d{4})', date_str)
+    if m:
+        return f"{m.group(3)}-{m.group(2).zfill(2)}-{m.group(1).zfill(2)}"
+
+    # ISO datetime: 2026-01-15T14:30:00
+    m = re.match(r'^(\d{4}-\d{2}-\d{2})T', date_str)
+    if m:
+        return m.group(1)
+
+    # Shopify-style: "2026-01-15 14:30:00 +0000"
+    m = re.match(r'^(\d{4}-\d{2}-\d{2})\s', date_str)
+    if m:
+        return m.group(1)
+
+    return date_str.strip()[:10]
+
+
 # ─── Financial Engine ────────────────────────────────────────────────────────
 
-def compute_metrics(rows, fixed_costs=0):
+def compute_metrics(normalized_rows, fixed_costs=0):
     """
-    Compute cafe financial metrics from transaction rows.
-    Each row: { date, item, category, price, cost, quantity }
+    Compute cafe financial metrics from normalized rows.
+    Each row: { item, category, quantity, revenue (total), cost (total), date }
     """
     total_revenue = 0
     total_cogs = 0
@@ -29,16 +258,13 @@ def compute_metrics(rows, fixed_costs=0):
     categories = {}
     daily = {}
 
-    for r in rows:
-        price = _num(r, ['price', 'sale_price', 'selling_price', 'revenue', 'amount'])
-        cost = _num(r, ['cost', 'cogs', 'cost_price', 'unit_cost'])
-        qty = _num(r, ['quantity', 'qty', 'units_sold', 'count']) or 1
-        item = _str(r, ['item', 'product', 'item_name', 'product_name', 'menu_item'])
-        cat = _str(r, ['category', 'type', 'group'])
-        date = _str(r, ['date', 'order_date', 'transaction_date', 'day'])
-
-        rev = price * qty
-        cog = cost * qty
+    for r in normalized_rows:
+        rev = r['revenue']
+        cog = r['cost']
+        qty = r['quantity']
+        item = r['item']
+        cat = r['category']
+        date = r['date']
         profit = rev - cog
 
         total_revenue += rev
@@ -127,7 +353,7 @@ def compute_metrics(rows, fixed_costs=0):
     }
 
 
-# ─── Groq AI ─────────────────────────────────────────────────────────────────
+# ─── Groq AI ───────────────────────────────────────────────────────────
 
 def call_groq(prompt, max_tokens=600):
     """Call Groq API (free tier: 30 req/min, 14,400/day)."""
@@ -226,23 +452,31 @@ Provide:
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
 
-def _num(row, keys):
-    for k in keys:
+def _flex_num(row, key_options):
+    """Extract a numeric value from a row, trying multiple possible column names."""
+    for k in key_options:
         for rk in row:
             if rk.strip().lower().replace(' ', '_') == k:
                 try:
-                    return float(str(row[rk]).replace('$', '').replace(',', '').strip())
+                    val = str(row[rk]).strip()
+                    # Remove currency symbols, commas, parentheses (accounting negatives)
+                    val = val.replace('$', '').replace(',', '').replace('(', '-').replace(')', '')
+                    val = val.strip()
+                    if not val or val.lower() in ('nan', 'n/a', '', '-', '--'):
+                        continue
+                    return float(val)
                 except (ValueError, TypeError):
-                    pass
+                    continue
     return 0
 
 
-def _str(row, keys):
-    for k in keys:
+def _flex_str(row, key_options):
+    """Extract a string value from a row, trying multiple possible column names."""
+    for k in key_options:
         for rk in row:
             if rk.strip().lower().replace(' ', '_') == k:
                 v = str(row[rk]).strip()
-                if v and v.lower() != 'nan':
+                if v and v.lower() not in ('nan', 'n/a', 'none', ''):
                     return v
     return ''
 
@@ -252,25 +486,43 @@ def _r(n):
 
 
 def parse_csv_text(text):
-    """Parse CSV text into list of dicts. Stdlib only."""
-    lines = [l.strip() for l in text.strip().split('\n') if l.strip()]
-    if not lines:
-        return []
+    """
+    Parse CSV text into list of dicts using Python's csv module.
+    Handles quoted fields with commas, various delimiters, BOM, etc.
+    """
+    # Strip BOM if present
+    if text.startswith('\ufeff'):
+        text = text[1:]
 
-    # Detect delimiter
-    first = lines[0]
-    delim = ',' if first.count(',') >= first.count('\t') else '\t'
+    text = text.strip()
+    if not text:
+        return [], 'generic'
 
-    headers = [h.strip().strip('"') for h in first.split(delim)]
+    # Detect delimiter (tab vs comma)
+    first_line = text.split('\n')[0]
+    dialect = 'excel'
+    delimiter = ','
+    if first_line.count('\t') > first_line.count(','):
+        delimiter = '\t'
+
+    reader = csv.DictReader(io.StringIO(text), delimiter=delimiter)
+
     rows = []
-    for line in lines[1:]:
-        vals = [v.strip().strip('"') for v in line.split(delim)]
-        if len(vals) >= len(headers):
-            rows.append(dict(zip(headers, vals)))
-    return rows
+    headers = []
+    for row in reader:
+        if not headers:
+            headers = list(row.keys())
+        # Skip completely empty rows
+        if any(v and v.strip() for v in row.values()):
+            rows.append(row)
+
+    # Detect POS format from headers
+    pos_format = detect_pos_format(headers) if headers else 'generic'
+
+    return rows, pos_format
 
 
-# ─── HTTP Handler ─────────────────────────────────────────────────────────────
+# ─── HTTP Handler ─────────────────────────────────────────────────────────
 
 class handler(BaseHTTPRequestHandler):
     def do_OPTIONS(self):
@@ -282,10 +534,11 @@ class handler(BaseHTTPRequestHandler):
         if path in ('', '/api', '/api/'):
             self._json(200, {
                 'name': 'AI Cafe Analyst',
-                'version': '1.0.0',
+                'version': '2.0.0',
                 'status': 'online',
                 'ai_enabled': bool(GROQ_API_KEY),
                 'ai_model': GROQ_MODEL if GROQ_API_KEY else None,
+                'supported_pos': ['square', 'lightspeed', 'toast', 'clover', 'shopify', 'generic'],
                 'endpoints': {
                     'POST /api/analyze': 'Upload cafe data and get financial analysis + AI recommendations',
                     'GET /api/health': 'Health check',
@@ -308,17 +561,36 @@ class handler(BaseHTTPRequestHandler):
                 csv_text = body.get('csv', '')
                 rows = body.get('rows', [])
                 fixed_costs = float(body.get('fixed_costs', 0))
+                force_format = body.get('pos_format', '')  # optional override
 
                 # Parse CSV if provided as text
+                pos_format = 'generic'
                 if csv_text and not rows:
-                    rows = parse_csv_text(csv_text)
+                    rows, pos_format = parse_csv_text(csv_text)
+
+                # Allow client to override detected format
+                if force_format and force_format in POS_COLUMN_MAPS:
+                    pos_format = force_format
 
                 if not rows:
                     self._json(400, {'error': 'No data provided. Send "csv" (CSV text) or "rows" (array of objects).'})
                     return
 
+                # Normalize all rows to standard internal format
+                normalized = [normalize_row(r, pos_format) for r in rows]
+                # Filter out empty rows (no item and no revenue)
+                normalized = [r for r in normalized if r['item'] or r['revenue'] > 0]
+
+                if not normalized:
+                    self._json(400, {
+                        'error': f'Could not extract data from your CSV. Detected format: {pos_format}. '
+                                 f'Make sure your CSV has columns for item names and sales amounts. '
+                                 f'Supported POS systems: Square, Lightspeed, Toast, Clover, Shopify.'
+                    })
+                    return
+
                 # Compute metrics
-                metrics = compute_metrics(rows, fixed_costs)
+                metrics = compute_metrics(normalized, fixed_costs)
 
                 # Get AI recommendations
                 prompt = build_prompt(metrics)
@@ -329,7 +601,8 @@ class handler(BaseHTTPRequestHandler):
                     'ai_recommendations': ai_text or 'Set GROQ_API_KEY environment variable for free AI recommendations (get key at console.groq.com).',
                     'ai_enabled': bool(GROQ_API_KEY),
                     'analyzed_at': datetime.utcnow().isoformat(),
-                    'rows_processed': len(rows),
+                    'rows_processed': len(normalized),
+                    'pos_format_detected': pos_format,
                 }
 
                 self._json(200, result)
