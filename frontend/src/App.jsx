@@ -1,0 +1,365 @@
+import React, { useState, useRef } from 'react';
+
+const API_URL = import.meta.env.VITE_API_URL || '';
+
+function App() {
+  const [results, setResults] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [fixedCosts, setFixedCosts] = useState('');
+  const [activeTab, setActiveTab] = useState('upload');
+  const [fileName, setFileName] = useState('');
+  const fileRef = useRef();
+
+  // ─── CSV Upload ──────────────────────────────────────────────────────────
+  const handleFile = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setFileName(file.name);
+    const text = await file.text();
+    await analyze(text);
+  };
+
+  const analyze = async (csvText) => {
+    setLoading(true);
+    setError('');
+    setResults(null);
+    try {
+      const res = await fetch(`${API_URL}/api/analyze`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          csv: csvText,
+          fixed_costs: parseFloat(fixedCosts) || 0,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Analysis failed');
+      setResults(data);
+      setActiveTab('report');
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ─── Sample Data ─────────────────────────────────────────────────────────
+  const loadSample = () => {
+    const csv = `date,item,category,price,cost,quantity
+2026-01-01,Flat White,Coffee,5.50,1.20,45
+2026-01-01,Cappuccino,Coffee,5.50,1.20,38
+2026-01-01,Long Black,Coffee,4.50,0.90,30
+2026-01-01,Croissant,Pastry,5.00,1.50,25
+2026-01-01,Banana Bread,Pastry,6.00,1.80,18
+2026-01-01,Avocado Toast,Food,16.00,5.50,22
+2026-01-01,Eggs Benedict,Food,19.00,6.00,15
+2026-01-01,Smoothie,Drinks,9.00,3.00,20
+2026-01-01,Iced Latte,Coffee,6.00,1.40,28
+2026-01-01,Chai Latte,Coffee,5.50,1.30,15
+2026-01-02,Flat White,Coffee,5.50,1.20,50
+2026-01-02,Cappuccino,Coffee,5.50,1.20,42
+2026-01-02,Long Black,Coffee,4.50,0.90,35
+2026-01-02,Croissant,Pastry,5.00,1.50,30
+2026-01-02,Banana Bread,Pastry,6.00,1.80,20
+2026-01-02,Avocado Toast,Food,16.00,5.50,25
+2026-01-02,Eggs Benedict,Food,19.00,6.00,18
+2026-01-02,Smoothie,Drinks,9.00,3.00,22
+2026-01-02,Iced Latte,Coffee,6.00,1.40,32
+2026-01-02,Chai Latte,Coffee,5.50,1.30,18
+2026-01-03,Flat White,Coffee,5.50,1.20,42
+2026-01-03,Cappuccino,Coffee,5.50,1.20,36
+2026-01-03,Long Black,Coffee,4.50,0.90,28
+2026-01-03,Croissant,Pastry,5.00,1.50,22
+2026-01-03,Banana Bread,Pastry,6.00,1.80,15
+2026-01-03,Avocado Toast,Food,16.00,5.50,20
+2026-01-03,Eggs Benedict,Food,19.00,6.00,12
+2026-01-03,Smoothie,Drinks,9.00,3.00,18
+2026-01-03,Iced Latte,Coffee,6.00,1.40,25
+2026-01-03,Chai Latte,Coffee,5.50,1.30,12`;
+    setFixedCosts('3500');
+    setFileName('sample_cafe_data.csv');
+    analyze(csv);
+  };
+
+  const s = results?.metrics?.summary;
+
+  return (
+    <div className="min-h-screen bg-dark-900">
+      {/* Nav */}
+      <nav className="border-b border-dark-600/50 backdrop-blur-xl bg-dark-900/80 sticky top-0 z-50">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">☕</span>
+            <span className="text-lg font-bold tracking-tight">AI Cafe Analyst</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className={`w-2 h-2 rounded-full ${results ? 'bg-gain' : 'bg-gray-500'}`}></span>
+            <span className="text-xs text-gray-400">{results ? 'Report Ready' : 'Waiting for data'}</span>
+          </div>
+        </div>
+      </nav>
+
+      <main className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
+        {/* Hero */}
+        <div className="mb-8">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight mb-3">
+            Your cafe's finances,<br />
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-400 to-orange-500">
+              analyzed by AI.
+            </span>
+          </h1>
+          <p className="text-gray-400 text-base sm:text-lg max-w-xl">
+            Upload your sales data. Get instant P&L analysis, margin breakdowns, and AI-powered recommendations to boost profit.
+          </p>
+        </div>
+
+        {/* Tabs */}
+        <div className="flex gap-1 mb-8 bg-dark-700 rounded-xl p-1 w-fit">
+          {['upload', 'report', 'ai'].map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              disabled={tab !== 'upload' && !results}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all capitalize ${
+                activeTab === tab
+                  ? 'bg-dark-600 text-white'
+                  : 'text-gray-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed'
+              }`}
+            >
+              {tab === 'ai' ? 'AI Insights' : tab}
+            </button>
+          ))}
+        </div>
+
+        {/* Upload Tab */}
+        {activeTab === 'upload' && (
+          <div className="bg-dark-800 border border-dark-600/50 rounded-2xl p-6 md:p-8">
+            <h2 className="text-xl font-semibold mb-6">Upload Cafe Data</h2>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+              <div>
+                <label className="block text-sm text-gray-400 mb-2">Monthly Fixed Costs (rent, salaries, utilities)</label>
+                <div className="relative">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-semibold">$</span>
+                  <input
+                    type="number" min="0" value={fixedCosts}
+                    onChange={(e) => setFixedCosts(e.target.value)}
+                    placeholder="e.g. 3500"
+                    className="w-full bg-dark-700 border border-dark-600 rounded-xl pl-8 pr-4 py-3 text-white focus:outline-none focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/20 transition-all"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm text-gray-400 mb-2">Sales CSV File</label>
+                <input
+                  ref={fileRef}
+                  type="file"
+                  accept=".csv,.tsv,.txt"
+                  onChange={handleFile}
+                  className="hidden"
+                />
+                <button
+                  onClick={() => fileRef.current?.click()}
+                  className="w-full bg-dark-700 border border-dashed border-dark-600 rounded-xl py-3 px-4 text-gray-400 hover:border-amber-500/50 hover:text-white transition-all text-left"
+                >
+                  {fileName || '📁 Choose CSV file...'}
+                </button>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                onClick={loadSample}
+                className="bg-amber-600 hover:bg-amber-500 text-black font-semibold px-6 py-3 rounded-xl transition-all"
+              >
+                ▶ Try with Sample Data
+              </button>
+              <span className="text-xs text-gray-500">
+                CSV columns: date, item, category, price, cost, quantity
+              </span>
+            </div>
+
+            {loading && (
+              <div className="mt-6 flex items-center gap-3 text-amber-400">
+                <svg className="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                </svg>
+                Analyzing your data...
+              </div>
+            )}
+
+            {error && (
+              <div className="mt-6 bg-red-500/10 border border-red-500/30 rounded-xl p-4 text-red-400 text-sm">{error}</div>
+            )}
+          </div>
+        )}
+
+        {/* Report Tab */}
+        {activeTab === 'report' && results && (
+          <div className="space-y-6">
+            {/* KPI Cards */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <KPI label="Revenue" value={`$${s.total_revenue.toLocaleString()}`} />
+              <KPI label="Gross Profit" value={`$${s.gross_profit.toLocaleString()}`} sub={`${s.gross_margin_pct}% margin`} color={s.gross_margin_pct >= 65 ? 'gain' : s.gross_margin_pct >= 50 ? 'accent' : 'loss'} />
+              <KPI label="Net Profit" value={`$${s.net_profit.toLocaleString()}`} sub={`${s.net_margin_pct}% margin`} color={s.net_profit >= 0 ? 'gain' : 'loss'} />
+              <KPI label="Food Cost" value={`${s.food_cost_pct}%`} sub="Target: 28-32%" color={s.food_cost_pct <= 32 ? 'gain' : s.food_cost_pct <= 38 ? 'accent' : 'loss'} />
+            </div>
+
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <KPI label="Avg Order Value" value={`$${s.avg_order_value}`} />
+              <KPI label="Units Sold" value={s.total_units_sold.toLocaleString()} />
+              <KPI label="Break-Even" value={`${s.break_even_units} units`} sub="to cover fixed costs" />
+              <KPI label="Daily Revenue" value={`$${s.avg_daily_revenue}`} sub={`${s.avg_daily_transactions} orders/day`} />
+            </div>
+
+            {/* P&L Statement */}
+            <div className="bg-dark-800 border border-dark-600/50 rounded-2xl p-6">
+              <h3 className="text-lg font-semibold mb-4">Profit & Loss Summary</h3>
+              <div className="space-y-2 text-sm">
+                <PLRow label="Total Revenue" value={s.total_revenue} bold />
+                <PLRow label="Cost of Goods Sold" value={-s.total_cogs} negative />
+                <div className="border-t border-dark-600 my-2"></div>
+                <PLRow label="Gross Profit" value={s.gross_profit} bold color={s.gross_profit >= 0 ? 'gain' : 'loss'} />
+                <PLRow label="Fixed Costs" value={-s.fixed_costs} negative />
+                <div className="border-t border-dark-600 my-2"></div>
+                <PLRow label="Net Profit" value={s.net_profit} bold color={s.net_profit >= 0 ? 'gain' : 'loss'} />
+              </div>
+            </div>
+
+            {/* Top Items */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="bg-dark-800 border border-dark-600/50 rounded-2xl p-6">
+                <h3 className="text-lg font-semibold mb-4">🏆 Top Items by Profit</h3>
+                <div className="space-y-3">
+                  {results.metrics.top_items.map((item, i) => (
+                    <div key={i} className="flex items-center justify-between bg-dark-700/50 rounded-xl px-4 py-3">
+                      <div>
+                        <span className="text-sm font-medium">{item.name}</span>
+                        <span className="text-xs text-gray-500 ml-2">{item.quantity} sold</span>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-sm font-bold text-gain">${item.profit}</span>
+                        <span className="text-xs text-gray-500 ml-2">profit</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="bg-dark-800 border border-dark-600/50 rounded-2xl p-6">
+                <h3 className="text-lg font-semibold mb-4">⚠️ Lowest Performers</h3>
+                <div className="space-y-3">
+                  {results.metrics.worst_items.map((item, i) => (
+                    <div key={i} className="flex items-center justify-between bg-dark-700/50 rounded-xl px-4 py-3">
+                      <div>
+                        <span className="text-sm font-medium">{item.name}</span>
+                        <span className="text-xs text-gray-500 ml-2">{item.quantity} sold</span>
+                      </div>
+                      <div className="text-right">
+                        <span className={`text-sm font-bold ${item.profit >= 0 ? 'text-amber-400' : 'text-loss'}`}>${item.profit}</span>
+                        <span className="text-xs text-gray-500 ml-2">profit</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Category Breakdown */}
+            {Object.keys(results.metrics.categories).length > 0 && (
+              <div className="bg-dark-800 border border-dark-600/50 rounded-2xl p-6">
+                <h3 className="text-lg font-semibold mb-4">📊 Category Breakdown</h3>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-gray-500 text-xs uppercase tracking-wider">
+                        <th className="text-left pb-3">Category</th>
+                        <th className="text-right pb-3">Revenue</th>
+                        <th className="text-right pb-3">Cost</th>
+                        <th className="text-right pb-3">Profit</th>
+                        <th className="text-right pb-3">Margin</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {Object.entries(results.metrics.categories).map(([cat, d]) => (
+                        <tr key={cat} className="border-t border-dark-700">
+                          <td className="py-3 font-medium">{cat}</td>
+                          <td className="py-3 text-right">${d.revenue}</td>
+                          <td className="py-3 text-right text-gray-400">${d.cost}</td>
+                          <td className={`py-3 text-right font-semibold ${d.profit >= 0 ? 'text-gain' : 'text-loss'}`}>${d.profit}</td>
+                          <td className="py-3 text-right">{d.revenue > 0 ? ((d.profit / d.revenue) * 100).toFixed(1) : 0}%</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* AI Insights Tab */}
+        {activeTab === 'ai' && results && (
+          <div className="bg-dark-800 border border-dark-600/50 rounded-2xl p-6 md:p-8">
+            <div className="flex items-center gap-3 mb-6">
+              <span className="text-2xl">🤖</span>
+              <div>
+                <h2 className="text-xl font-semibold">AI Financial Recommendations</h2>
+                <p className="text-xs text-gray-500">
+                  {results.ai_enabled ? 'Powered by Llama 3.3 70B via Groq' : 'AI not configured — set GROQ_API_KEY'}
+                </p>
+              </div>
+            </div>
+            <div className="prose prose-invert max-w-none whitespace-pre-wrap text-sm leading-relaxed text-gray-300">
+              {results.ai_recommendations}
+            </div>
+            <div className="mt-6 text-xs text-gray-600">
+              Analyzed {results.rows_processed} rows · {results.analyzed_at}
+            </div>
+          </div>
+        )}
+      </main>
+
+      {/* Footer */}
+      <footer className="border-t border-dark-700/50 mt-16">
+        <div className="max-w-6xl mx-auto px-6 py-6 flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div className="flex items-center gap-2 text-gray-500 text-sm">
+            <span>☕</span> AI Cafe Analyst · Free & Open Source
+          </div>
+          <div className="text-xs text-gray-600">
+            AI by Groq (free) · Deployed on Vercel (free)
+          </div>
+        </div>
+      </footer>
+    </div>
+  );
+}
+
+// ─── Sub-components ──────────────────────────────────────────────────────────
+
+function KPI({ label, value, sub, color }) {
+  const colors = { gain: 'text-gain', loss: 'text-loss', accent: 'text-amber-400' };
+  return (
+    <div className="bg-dark-800 border border-dark-600/50 rounded-2xl p-5">
+      <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">{label}</p>
+      <p className={`text-2xl font-bold ${colors[color] || 'text-white'}`}>{value}</p>
+      {sub && <p className="text-xs text-gray-500 mt-1">{sub}</p>}
+    </div>
+  );
+}
+
+function PLRow({ label, value, bold, negative, color }) {
+  const colors = { gain: 'text-gain', loss: 'text-loss' };
+  return (
+    <div className="flex justify-between items-center">
+      <span className={bold ? 'font-semibold' : 'text-gray-400'}>{label}</span>
+      <span className={`${bold ? 'font-bold text-lg' : ''} ${colors[color] || (negative ? 'text-gray-400' : 'text-white')}`}>
+        {negative ? `(${Math.abs(value).toLocaleString()})` : `$${value.toLocaleString()}`}
+      </span>
+    </div>
+  );
+}
+
+export default App;

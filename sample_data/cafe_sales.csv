@@ -1,0 +1,51 @@
+date,item,category,price,cost,quantity
+2026-01-01,Flat White,Coffee,5.50,1.20,45
+2026-01-01,Cappuccino,Coffee,5.50,1.20,38
+2026-01-01,Long Black,Coffee,4.50,0.90,30
+2026-01-01,Croissant,Pastry,5.00,1.50,25
+2026-01-01,Banana Bread,Pastry,6.00,1.80,18
+2026-01-01,Avocado Toast,Food,16.00,5.50,22
+2026-01-01,Eggs Benedict,Food,19.00,6.00,15
+2026-01-01,Smoothie,Drinks,9.00,3.00,20
+2026-01-01,Iced Latte,Coffee,6.00,1.40,28
+2026-01-01,Chai Latte,Coffee,5.50,1.30,15
+2026-01-02,Flat White,Coffee,5.50,1.20,50
+2026-01-02,Cappuccino,Coffee,5.50,1.20,42
+2026-01-02,Long Black,Coffee,4.50,0.90,35
+2026-01-02,Croissant,Pastry,5.00,1.50,30
+2026-01-02,Banana Bread,Pastry,6.00,1.80,20
+2026-01-02,Avocado Toast,Food,16.00,5.50,25
+2026-01-02,Eggs Benedict,Food,19.00,6.00,18
+2026-01-02,Smoothie,Drinks,9.00,3.00,22
+2026-01-02,Iced Latte,Coffee,6.00,1.40,32
+2026-01-02,Chai Latte,Coffee,5.50,1.30,18
+2026-01-03,Flat White,Coffee,5.50,1.20,42
+2026-01-03,Cappuccino,Coffee,5.50,1.20,36
+2026-01-03,Long Black,Coffee,4.50,0.90,28
+2026-01-03,Croissant,Pastry,5.00,1.50,22
+2026-01-03,Banana Bread,Pastry,6.00,1.80,15
+2026-01-03,Avocado Toast,Food,16.00,5.50,20
+2026-01-03,Eggs Benedict,Food,19.00,6.00,12
+2026-01-03,Smoothie,Drinks,9.00,3.00,18
+2026-01-03,Iced Latte,Coffee,6.00,1.40,25
+2026-01-03,Chai Latte,Coffee,5.50,1.30,12
+2026-01-04,Flat White,Coffee,5.50,1.20,48
+2026-01-04,Cappuccino,Coffee,5.50,1.20,40
+2026-01-04,Long Black,Coffee,4.50,0.90,33
+2026-01-04,Croissant,Pastry,5.00,1.50,28
+2026-01-04,Banana Bread,Pastry,6.00,1.80,22
+2026-01-04,Avocado Toast,Food,16.00,5.50,24
+2026-01-04,Eggs Benedict,Food,19.00,6.00,16
+2026-01-04,Smoothie,Drinks,9.00,3.00,19
+2026-01-04,Iced Latte,Coffee,6.00,1.40,30
+2026-01-04,Chai Latte,Coffee,5.50,1.30,14
+2026-01-05,Flat White,Coffee,5.50,1.20,55
+2026-01-05,Cappuccino,Coffee,5.50,1.20,45
+2026-01-05,Long Black,Coffee,4.50,0.90,38
+2026-01-05,Croissant,Pastry,5.00,1.50,35
+2026-01-05,Banana Bread,Pastry,6.00,1.80,25
+2026-01-05,Avocado Toast,Food,16.00,5.50,28
+2026-01-05,Eggs Benedict,Food,19.00,6.00,20
+2026-01-05,Smoothie,Drinks,9.00,3.00,25
+2026-01-05,Iced Latte,Coffee,6.00,1.40,35
+2026-01-05,Chai Latte,Coffee,5.50,1.30,18
