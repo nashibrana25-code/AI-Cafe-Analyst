@@ -5,14 +5,20 @@ export default {
     extend: {
       colors: {
         dark: {
-          900: '#0a0a0f',
-          800: '#12121a',
-          700: '#1a1a25',
-          600: '#252530',
+          900: '#f7f8fa',
+          800: '#ffffff',
+          700: '#edf0f5',
+          600: '#dde3ed',
         },
-        accent: '#f59e0b',
-        gain: '#22c55e',
-        loss: '#ef4444',
+        accent: '#13B5EA',
+        gain: '#1dab57',
+        loss: '#d94a4a',
+        xero: {
+          blue: '#13B5EA',
+          dark: '#1B2A4A',
+          navy: '#233658',
+          teal: '#0CAADC',
+        },
       },
     },
   },

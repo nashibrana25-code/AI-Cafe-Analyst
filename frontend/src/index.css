@@ -7,9 +7,9 @@
 }
 
 body {
-  @apply bg-dark-900 text-white;
+  @apply bg-dark-900 text-xero-dark;
 }
 
 ::-webkit-scrollbar { width: 6px; }
-::-webkit-scrollbar-track { background: #12121a; }
-::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+::-webkit-scrollbar-track { background: #edf0f5; }
+::-webkit-scrollbar-thumb { background: #c4cdd9; border-radius: 3px; }

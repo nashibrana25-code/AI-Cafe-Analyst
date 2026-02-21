@@ -116,11 +116,11 @@ function App() {
   return (
     <div className="min-h-screen bg-dark-900">
       {/* Nav */}
-      <nav className="border-b border-dark-600/50 backdrop-blur-xl bg-dark-900/80 sticky top-0 z-50">
+      <nav className="border-b border-dark-600/50 backdrop-blur-xl bg-white/90 sticky top-0 z-50 shadow-sm">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <span className="text-2xl">☕</span>
-            <span className="text-lg font-bold tracking-tight">AI Cafe Analyst</span>
+            <span className="text-lg font-bold tracking-tight text-xero-dark">AI Cafe Analyst</span>
           </div>
           <div className="flex items-center gap-3">
             <StatusBadge label="Backend" status={backendStatus} />
@@ -132,18 +132,18 @@ function App() {
       <main className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
         {/* Hero */}
         <div className="mb-8">
-          <h1 className="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight mb-3">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight mb-3 text-xero-dark">
             Your cafe's finances,<br />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-400 to-orange-500">
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-xero-blue to-xero-teal">
               analyzed by AI.
             </span>
           </h1>
-          <p className="text-gray-400 text-base sm:text-lg max-w-xl">
+          <p className="text-gray-500 text-base sm:text-lg max-w-xl">
             Upload your sales data from any POS system. Get instant P&L analysis, margin breakdowns, and AI-powered recommendations to boost profit.
           </p>
           <div className="flex flex-wrap gap-2 mt-4">
             {['Square', 'Lightspeed', 'Toast', 'Clover', 'Shopify', 'Custom CSV'].map((pos) => (
-              <span key={pos} className="text-[11px] bg-dark-700/80 text-gray-400 px-2.5 py-1 rounded-lg border border-dark-600/30">
+              <span key={pos} className="text-[11px] bg-white text-gray-500 px-2.5 py-1 rounded-lg border border-dark-600/50 shadow-sm">
                 {pos}
               </span>
             ))}
@@ -159,8 +159,8 @@ function App() {
               disabled={tab !== 'upload' && !results}
               className={`px-4 py-2 rounded-lg text-sm font-medium transition-all capitalize ${
                 activeTab === tab
-                  ? 'bg-dark-600 text-white'
-                  : 'text-gray-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed'
+                  ? 'bg-white text-xero-dark shadow-sm'
+                  : 'text-gray-500 hover:text-xero-dark disabled:opacity-30 disabled:cursor-not-allowed'
               }`}
             >
               {tab === 'ai' ? 'AI Insights' : tab}
@@ -170,25 +170,25 @@ function App() {
 
         {/* Upload Tab */}
         {activeTab === 'upload' && (
-          <div className="bg-dark-800 border border-dark-600/50 rounded-2xl p-6 md:p-8">
-            <h2 className="text-xl font-semibold mb-2">Upload Cafe Data</h2>
+          <div className="bg-white border border-dark-600/50 rounded-2xl p-6 md:p-8 shadow-sm">
+            <h2 className="text-xl font-semibold mb-2 text-xero-dark">Upload Cafe Data</h2>
             <p className="text-sm text-gray-500 mb-6">Export a CSV from your POS system and upload it here. We auto-detect the format.</p>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
               <div>
-                <label className="block text-sm text-gray-400 mb-2">Monthly Fixed Costs (rent, salaries, utilities)</label>
+                <label className="block text-sm text-gray-500 mb-2">Monthly Fixed Costs (rent, salaries, utilities)</label>
                 <div className="relative">
-                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-semibold">$</span>
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-semibold">$</span>
                   <input
                     type="number" min="0" value={fixedCosts}
                     onChange={(e) => setFixedCosts(e.target.value)}
                     placeholder="e.g. 3500"
-                    className="w-full bg-dark-700 border border-dark-600 rounded-xl pl-8 pr-4 py-3 text-white focus:outline-none focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/20 transition-all"
+                    className="w-full bg-dark-700 border border-dark-600 rounded-xl pl-8 pr-4 py-3 text-xero-dark focus:outline-none focus:border-xero-blue/50 focus:ring-1 focus:ring-xero-blue/20 transition-all"
                   />
                 </div>
               </div>
               <div>
-                <label className="block text-sm text-gray-400 mb-2">Sales CSV File</label>
+                <label className="block text-sm text-gray-500 mb-2">Sales CSV File</label>
                 <input
                   ref={fileRef}
                   type="file"
@@ -198,7 +198,7 @@ function App() {
                 />
                 <button
                   onClick={() => fileRef.current?.click()}
-                  className="w-full bg-dark-700 border border-dashed border-dark-600 rounded-xl py-3 px-4 text-gray-400 hover:border-amber-500/50 hover:text-white transition-all text-left"
+                  className="w-full bg-dark-700 border border-dashed border-dark-600 rounded-xl py-3 px-4 text-gray-500 hover:border-xero-blue/50 hover:text-xero-dark transition-all text-left"
                 >
                   {fileName || '📁 Choose CSV file...'}
                 </button>
@@ -208,27 +208,27 @@ function App() {
             <div className="flex flex-wrap items-center gap-3 mb-5">
               <button
                 onClick={loadSample}
-                className="bg-amber-600 hover:bg-amber-500 text-black font-semibold px-6 py-3 rounded-xl transition-all"
+                className="bg-xero-blue hover:bg-xero-teal text-white font-semibold px-6 py-3 rounded-xl transition-all shadow-sm"
               >
                 ▶ Try with Sample Data
               </button>
             </div>
 
             {/* POS Export Guide */}
-            <div className="bg-dark-700/40 border border-dark-600/30 rounded-xl p-4">
-              <p className="text-xs font-semibold text-gray-400 mb-2">📋 How to export from your POS:</p>
+            <div className="bg-dark-700/60 border border-dark-600/40 rounded-xl p-4">
+              <p className="text-xs font-semibold text-gray-500 mb-2">📋 How to export from your POS:</p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1 text-[11px] text-gray-500">
-                <span><strong className="text-gray-400">Square:</strong> Reports → Sales → Export CSV (Items Detail)</span>
-                <span><strong className="text-gray-400">Lightspeed:</strong> Reports → Sales → Export to CSV</span>
-                <span><strong className="text-gray-400">Toast:</strong> Reports → Sales Summary → Download CSV</span>
-                <span><strong className="text-gray-400">Clover:</strong> Sales → Transactions → Export</span>
-                <span><strong className="text-gray-400">Shopify:</strong> Analytics → Reports → Export CSV</span>
-                <span><strong className="text-gray-400">Other:</strong> Any CSV with item, sales, quantity columns</span>
+                <span><strong className="text-gray-600">Square:</strong> Reports → Sales → Export CSV (Items Detail)</span>
+                <span><strong className="text-gray-600">Lightspeed:</strong> Reports → Sales → Export to CSV</span>
+                <span><strong className="text-gray-600">Toast:</strong> Reports → Sales Summary → Download CSV</span>
+                <span><strong className="text-gray-600">Clover:</strong> Sales → Transactions → Export</span>
+                <span><strong className="text-gray-600">Shopify:</strong> Analytics → Reports → Export CSV</span>
+                <span><strong className="text-gray-600">Other:</strong> Any CSV with item, sales, quantity columns</span>
               </div>
             </div>
 
             {loading && (
-              <div className="mt-6 flex items-center gap-3 text-amber-400">
+              <div className="mt-6 flex items-center gap-3 text-xero-blue">
                 <svg className="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
@@ -238,7 +238,7 @@ function App() {
             )}
 
             {error && (
-              <div className="mt-6 bg-red-500/10 border border-red-500/30 rounded-xl p-4 text-red-400 text-sm">{error}</div>
+              <div className="mt-6 bg-red-50 border border-red-200 rounded-xl p-4 text-loss text-sm">{error}</div>
             )}
           </div>
         )}
@@ -248,14 +248,14 @@ function App() {
           <div className="space-y-6">
             {/* Detected Format Banner */}
             {results.pos_format_detected && (
-              <div className="flex items-center gap-2 bg-dark-800/60 border border-dark-600/30 rounded-xl px-4 py-2.5">
+              <div className="flex items-center gap-2 bg-white border border-dark-600/40 rounded-xl px-4 py-2.5 shadow-sm">
                 <span className="text-sm">🔌</span>
-                <span className="text-sm text-gray-300">
-                  Detected: <strong className="text-white">{POS_LABELS[results.pos_format_detected] || results.pos_format_detected}</strong>
+                <span className="text-sm text-gray-600">
+                  Detected: <strong className="text-xero-dark">{POS_LABELS[results.pos_format_detected] || results.pos_format_detected}</strong>
                 </span>
-                <span className="text-xs text-gray-500 ml-auto">{results.rows_processed} rows processed</span>
+                <span className="text-xs text-gray-400 ml-auto">{results.rows_processed} rows processed</span>
                 {!results.metrics.summary.total_cogs && (
-                  <span className="text-[10px] bg-amber-500/10 text-amber-400 px-2 py-0.5 rounded-md">
+                  <span className="text-[10px] bg-amber-50 text-amber-600 px-2 py-0.5 rounded-md border border-amber-200">
                     Tip: Add cost data for margin analysis
                   </span>
                 )}
@@ -278,51 +278,51 @@ function App() {
             </div>
 
             {/* P&L Statement */}
-            <div className="bg-dark-800 border border-dark-600/50 rounded-2xl p-6">
-              <h3 className="text-lg font-semibold mb-4">Profit & Loss Summary</h3>
+            <div className="bg-white border border-dark-600/50 rounded-2xl p-6 shadow-sm">
+              <h3 className="text-lg font-semibold mb-4 text-xero-dark">Profit & Loss Summary</h3>
               <div className="space-y-2 text-sm">
                 <PLRow label="Total Revenue" value={s.total_revenue} bold />
                 <PLRow label="Cost of Goods Sold" value={-s.total_cogs} negative />
-                <div className="border-t border-dark-600 my-2"></div>
+                <div className="border-t border-dark-600/50 my-2"></div>
                 <PLRow label="Gross Profit" value={s.gross_profit} bold color={s.gross_profit >= 0 ? 'gain' : 'loss'} />
                 <PLRow label="Fixed Costs" value={-s.fixed_costs} negative />
-                <div className="border-t border-dark-600 my-2"></div>
+                <div className="border-t border-dark-600/50 my-2"></div>
                 <PLRow label="Net Profit" value={s.net_profit} bold color={s.net_profit >= 0 ? 'gain' : 'loss'} />
               </div>
             </div>
 
             {/* Top Items */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="bg-dark-800 border border-dark-600/50 rounded-2xl p-6">
-                <h3 className="text-lg font-semibold mb-4">🏆 Top Items by Profit</h3>
+              <div className="bg-white border border-dark-600/50 rounded-2xl p-6 shadow-sm">
+                <h3 className="text-lg font-semibold mb-4 text-xero-dark">🏆 Top Items by Profit</h3>
                 <div className="space-y-3">
                   {results.metrics.top_items.map((item, i) => (
-                    <div key={i} className="flex items-center justify-between bg-dark-700/50 rounded-xl px-4 py-3">
+                    <div key={i} className="flex items-center justify-between bg-dark-700/60 rounded-xl px-4 py-3">
                       <div>
-                        <span className="text-sm font-medium">{item.name}</span>
-                        <span className="text-xs text-gray-500 ml-2">{item.quantity} sold</span>
+                        <span className="text-sm font-medium text-xero-dark">{item.name}</span>
+                        <span className="text-xs text-gray-400 ml-2">{item.quantity} sold</span>
                       </div>
                       <div className="text-right">
                         <span className="text-sm font-bold text-gain">${item.profit}</span>
-                        <span className="text-xs text-gray-500 ml-2">profit</span>
+                        <span className="text-xs text-gray-400 ml-2">profit</span>
                       </div>
                     </div>
                   ))}
                 </div>
               </div>
 
-              <div className="bg-dark-800 border border-dark-600/50 rounded-2xl p-6">
-                <h3 className="text-lg font-semibold mb-4">⚠️ Lowest Performers</h3>
+              <div className="bg-white border border-dark-600/50 rounded-2xl p-6 shadow-sm">
+                <h3 className="text-lg font-semibold mb-4 text-xero-dark">⚠️ Lowest Performers</h3>
                 <div className="space-y-3">
                   {results.metrics.worst_items.map((item, i) => (
-                    <div key={i} className="flex items-center justify-between bg-dark-700/50 rounded-xl px-4 py-3">
+                    <div key={i} className="flex items-center justify-between bg-dark-700/60 rounded-xl px-4 py-3">
                       <div>
-                        <span className="text-sm font-medium">{item.name}</span>
-                        <span className="text-xs text-gray-500 ml-2">{item.quantity} sold</span>
+                        <span className="text-sm font-medium text-xero-dark">{item.name}</span>
+                        <span className="text-xs text-gray-400 ml-2">{item.quantity} sold</span>
                       </div>
                       <div className="text-right">
-                        <span className={`text-sm font-bold ${item.profit >= 0 ? 'text-amber-400' : 'text-loss'}`}>${item.profit}</span>
-                        <span className="text-xs text-gray-500 ml-2">profit</span>
+                        <span className={`text-sm font-bold ${item.profit >= 0 ? 'text-amber-500' : 'text-loss'}`}>${item.profit}</span>
+                        <span className="text-xs text-gray-400 ml-2">profit</span>
                       </div>
                     </div>
                   ))}
@@ -332,12 +332,12 @@ function App() {
 
             {/* Category Breakdown */}
             {Object.keys(results.metrics.categories).length > 0 && (
-              <div className="bg-dark-800 border border-dark-600/50 rounded-2xl p-6">
-                <h3 className="text-lg font-semibold mb-4">📊 Category Breakdown</h3>
+              <div className="bg-white border border-dark-600/50 rounded-2xl p-6 shadow-sm">
+                <h3 className="text-lg font-semibold mb-4 text-xero-dark">📊 Category Breakdown</h3>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="text-gray-500 text-xs uppercase tracking-wider">
+                      <tr className="text-gray-400 text-xs uppercase tracking-wider">
                         <th className="text-left pb-3">Category</th>
                         <th className="text-right pb-3">Revenue</th>
                         <th className="text-right pb-3">Cost</th>
@@ -347,12 +347,12 @@ function App() {
                     </thead>
                     <tbody>
                       {Object.entries(results.metrics.categories).map(([cat, d]) => (
-                        <tr key={cat} className="border-t border-dark-700">
-                          <td className="py-3 font-medium">{cat}</td>
-                          <td className="py-3 text-right">${d.revenue}</td>
-                          <td className="py-3 text-right text-gray-400">${d.cost}</td>
+                        <tr key={cat} className="border-t border-dark-600/40">
+                          <td className="py-3 font-medium text-xero-dark">{cat}</td>
+                          <td className="py-3 text-right text-xero-dark">${d.revenue}</td>
+                          <td className="py-3 text-right text-gray-500">${d.cost}</td>
                           <td className={`py-3 text-right font-semibold ${d.profit >= 0 ? 'text-gain' : 'text-loss'}`}>${d.profit}</td>
-                          <td className="py-3 text-right">{d.revenue > 0 ? ((d.profit / d.revenue) * 100).toFixed(1) : 0}%</td>
+                          <td className="py-3 text-right text-xero-dark">{d.revenue > 0 ? ((d.profit / d.revenue) * 100).toFixed(1) : 0}%</td>
                         </tr>
                       ))}
                     </tbody>
@@ -365,23 +365,23 @@ function App() {
 
         {/* AI Insights Tab */}
         {activeTab === 'ai' && results && (
-          <div className="bg-dark-800 border border-dark-600/50 rounded-2xl p-6 md:p-8">
+          <div className="bg-white border border-dark-600/50 rounded-2xl p-6 md:p-8 shadow-sm">
             <div className="flex items-center gap-3 mb-6">
               <span className="text-2xl">🤖</span>
               <div>
-                <h2 className="text-xl font-semibold">AI Financial Recommendations</h2>
-                <p className="text-xs text-gray-500">
+                <h2 className="text-xl font-semibold text-xero-dark">AI Financial Recommendations</h2>
+                <p className="text-xs text-gray-400">
                   {results.ai_enabled ? 'Powered by Llama 3.3 70B via Groq' : 'AI not configured — set GROQ_API_KEY'}
                 </p>
               </div>
             </div>
-            <div className="prose prose-invert max-w-none whitespace-pre-wrap text-sm leading-relaxed text-gray-300">
+            <div className="prose max-w-none whitespace-pre-wrap text-sm leading-relaxed text-gray-600">
               {results.ai_recommendations}
             </div>
-            <div className="mt-6 flex flex-wrap items-center gap-3 text-xs text-gray-600">
+            <div className="mt-6 flex flex-wrap items-center gap-3 text-xs text-gray-400">
               <span>Analyzed {results.rows_processed} rows · {results.analyzed_at}</span>
               {results.pos_format_detected && (
-                <span className="bg-dark-700 text-gray-400 px-2 py-0.5 rounded-md">
+                <span className="bg-dark-700 text-gray-500 px-2 py-0.5 rounded-md">
                   Format: {POS_LABELS[results.pos_format_detected] || results.pos_format_detected}
                 </span>
               )}
@@ -391,12 +391,12 @@ function App() {
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-dark-700/50 mt-16">
+      <footer className="border-t border-dark-600/40 mt-16">
         <div className="max-w-6xl mx-auto px-6 py-6 flex flex-col sm:flex-row items-center justify-between gap-3">
           <div className="flex items-center gap-2 text-gray-500 text-sm">
             <span>☕</span> AI Cafe Analyst · Free & Open Source
           </div>
-          <div className="text-xs text-gray-600">
+          <div className="text-xs text-gray-400">
             AI by Groq (free) · Deployed on Vercel (free)
           </div>
         </div>
@@ -408,12 +408,12 @@ function App() {
 // ─── Sub-components ──────────────────────────────────────────────────────
 
 function KPI({ label, value, sub, color }) {
-  const colors = { gain: 'text-gain', loss: 'text-loss', accent: 'text-amber-400' };
+  const colors = { gain: 'text-gain', loss: 'text-loss', accent: 'text-xero-blue' };
   return (
-    <div className="bg-dark-800 border border-dark-600/50 rounded-2xl p-5">
-      <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">{label}</p>
-      <p className={`text-2xl font-bold ${colors[color] || 'text-white'}`}>{value}</p>
-      {sub && <p className="text-xs text-gray-500 mt-1">{sub}</p>}
+    <div className="bg-white border border-dark-600/50 rounded-2xl p-5 shadow-sm">
+      <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">{label}</p>
+      <p className={`text-2xl font-bold ${colors[color] || 'text-xero-dark'}`}>{value}</p>
+      {sub && <p className="text-xs text-gray-400 mt-1">{sub}</p>}
     </div>
   );
 }
@@ -422,8 +422,8 @@ function PLRow({ label, value, bold, negative, color }) {
   const colors = { gain: 'text-gain', loss: 'text-loss' };
   return (
     <div className="flex justify-between items-center">
-      <span className={bold ? 'font-semibold' : 'text-gray-400'}>{label}</span>
-      <span className={`${bold ? 'font-bold text-lg' : ''} ${colors[color] || (negative ? 'text-gray-400' : 'text-white')}`}>
+      <span className={bold ? 'font-semibold text-xero-dark' : 'text-gray-500'}>{label}</span>
+      <span className={`${bold ? 'font-bold text-lg' : ''} ${colors[color] || (negative ? 'text-gray-500' : 'text-xero-dark')}`}>
         {negative ? `(${Math.abs(value).toLocaleString()})` : `$${value.toLocaleString()}`}
       </span>
     </div>
@@ -440,13 +440,13 @@ function StatusBadge({ label, status }) {
   };
   const c = config[status] || config.checking;
   return (
-    <div className="flex items-center gap-1.5 bg-dark-700/60 rounded-lg px-2.5 py-1">
+    <div className="flex items-center gap-1.5 bg-dark-700/80 rounded-lg px-2.5 py-1">
       <span className="relative flex h-2 w-2">
         {c.pulse && <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${c.color} opacity-75`}></span>}
         <span className={`relative inline-flex rounded-full h-2 w-2 ${c.color}`}></span>
       </span>
-      <span className="text-[10px] text-gray-400 font-medium">{label}:</span>
-      <span className="text-[10px] text-gray-300 font-semibold">{c.text}</span>
+      <span className="text-[10px] text-gray-500 font-medium">{label}:</span>
+      <span className="text-[10px] text-xero-dark font-semibold">{c.text}</span>
     </div>
   );
 }
