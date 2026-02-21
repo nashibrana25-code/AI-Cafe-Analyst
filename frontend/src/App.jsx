@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
@@ -9,7 +9,27 @@ function App() {
   const [fixedCosts, setFixedCosts] = useState('');
   const [activeTab, setActiveTab] = useState('upload');
   const [fileName, setFileName] = useState('');
+  const [backendStatus, setBackendStatus] = useState('checking');
+  const [aiStatus, setAiStatus] = useState('checking');
   const fileRef = useRef();
+
+  // ─── Health Check on Mount ───────────────────────────────────────────────
+  useEffect(() => {
+    const checkHealth = async () => {
+      try {
+        const res = await fetch(`${API_URL}/api/health`);
+        const data = await res.json();
+        setBackendStatus(data.status === 'healthy' ? 'connected' : 'error');
+        setAiStatus(data.ai ? 'live' : 'offline');
+      } catch {
+        setBackendStatus('offline');
+        setAiStatus('offline');
+      }
+    };
+    checkHealth();
+    const interval = setInterval(checkHealth, 60000); // re-check every 60s
+    return () => clearInterval(interval);
+  }, []);
 
   // ─── CSV Upload ──────────────────────────────────────────────────────────
   const handleFile = async (e) => {
@@ -93,9 +113,9 @@ function App() {
             <span className="text-2xl">☕</span>
             <span className="text-lg font-bold tracking-tight">AI Cafe Analyst</span>
           </div>
-          <div className="flex items-center gap-2">
-            <span className={`w-2 h-2 rounded-full ${results ? 'bg-gain' : 'bg-gray-500'}`}></span>
-            <span className="text-xs text-gray-400">{results ? 'Report Ready' : 'Waiting for data'}</span>
+          <div className="flex items-center gap-3">
+            <StatusBadge label="Backend" status={backendStatus} />
+            <StatusBadge label="AI" status={aiStatus} />
           </div>
         </div>
       </nav>
@@ -358,6 +378,27 @@ function PLRow({ label, value, bold, negative, color }) {
       <span className={`${bold ? 'font-bold text-lg' : ''} ${colors[color] || (negative ? 'text-gray-400' : 'text-white')}`}>
         {negative ? `(${Math.abs(value).toLocaleString()})` : `$${value.toLocaleString()}`}
       </span>
+    </div>
+  );
+}
+
+function StatusBadge({ label, status }) {
+  const config = {
+    connected: { color: 'bg-gain', text: 'Connected', pulse: false },
+    live:      { color: 'bg-gain', text: 'Live', pulse: true },
+    checking:  { color: 'bg-amber-400', text: 'Checking...', pulse: true },
+    offline:   { color: 'bg-loss', text: 'Offline', pulse: false },
+    error:     { color: 'bg-loss', text: 'Error', pulse: false },
+  };
+  const c = config[status] || config.checking;
+  return (
+    <div className="flex items-center gap-1.5 bg-dark-700/60 rounded-lg px-2.5 py-1">
+      <span className="relative flex h-2 w-2">
+        {c.pulse && <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${c.color} opacity-75`}></span>}
+        <span className={`relative inline-flex rounded-full h-2 w-2 ${c.color}`}></span>
+      </span>
+      <span className="text-[10px] text-gray-400 font-medium">{label}:</span>
+      <span className="text-[10px] text-gray-300 font-semibold">{c.text}</span>
     </div>
   );
 }
