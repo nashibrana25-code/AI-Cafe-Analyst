@@ -407,10 +407,11 @@ def apply_expense_data(normalized_rows, unit_costs, category_costs):
 
 # ─── Financial Engine ────────────────────────────────────────────────────────
 
-def compute_metrics(normalized_rows, fixed_costs=0):
+def compute_metrics(normalized_rows, fixed_costs=0, time_period_months=1):
     """
     Compute cafe financial metrics from normalized rows.
     Each row: { item, category, quantity, revenue (total), cost (total), date }
+    time_period_months: how many months the data covers (for projections).
     """
     total_revenue = 0
     total_cogs = 0
@@ -478,6 +479,17 @@ def compute_metrics(normalized_rows, fixed_costs=0):
     avg_daily_revenue = total_revenue / num_days
     avg_daily_transactions = sum(d['transactions'] for d in daily.values()) / num_days
 
+    # Monthly and annual projections
+    tp = max(time_period_months, 1)
+    monthly_revenue = total_revenue / tp
+    monthly_cogs = total_cogs / tp
+    monthly_gross_profit = gross_profit / tp
+    monthly_net_profit = net_profit / tp
+    annual_revenue = monthly_revenue * 12
+    annual_cogs = monthly_cogs * 12
+    annual_gross_profit = monthly_gross_profit * 12
+    annual_net_profit = monthly_net_profit * 12
+
     return {
         'summary': {
             'total_revenue': _r(total_revenue),
@@ -494,6 +506,15 @@ def compute_metrics(normalized_rows, fixed_costs=0):
             'num_days': num_days,
             'avg_daily_revenue': _r(avg_daily_revenue),
             'avg_daily_transactions': _r(avg_daily_transactions),
+            'time_period_months': tp,
+            'monthly_revenue': _r(monthly_revenue),
+            'monthly_cogs': _r(monthly_cogs),
+            'monthly_gross_profit': _r(monthly_gross_profit),
+            'monthly_net_profit': _r(monthly_net_profit),
+            'annual_revenue': _r(annual_revenue),
+            'annual_cogs': _r(annual_cogs),
+            'annual_gross_profit': _r(annual_gross_profit),
+            'annual_net_profit': _r(annual_net_profit),
         },
         'top_items': [
             {'name': name, **{k: _r(v) if isinstance(v, float) else v for k, v in data.items()}}
@@ -585,7 +606,9 @@ def build_prompt(metrics):
 
     return f"""Analyze this cafe's financial data and provide 6-8 specific, prioritized recommendations.
 
-FINANCIAL SUMMARY:
+DATA PERIOD: {s.get('time_period_months', 1)} month(s) of data
+
+FINANCIAL SUMMARY (for the full period):
 - Total Revenue: ${s['total_revenue']}
 - Total COGS: ${s['total_cogs']}
 - Gross Profit: ${s['gross_profit']} (Margin: {s['gross_margin_pct']}%)
@@ -596,6 +619,15 @@ FINANCIAL SUMMARY:
 - Break-even: {s['break_even_units']} units
 - Avg Daily Revenue: ${s['avg_daily_revenue']}
 - Avg Daily Transactions: {s['avg_daily_transactions']}
+
+MONTHLY AVERAGES:
+- Monthly Revenue: ${s.get('monthly_revenue', s['total_revenue'])}
+- Monthly COGS: ${s.get('monthly_cogs', s['total_cogs'])}
+- Monthly Net Profit: ${s.get('monthly_net_profit', s['net_profit'])}
+
+ANNUAL PROJECTIONS:
+- Annual Revenue: ${s.get('annual_revenue', s['total_revenue'])}
+- Annual Net Profit: ${s.get('annual_net_profit', s['net_profit'])}
 
 TOP SELLING ITEMS:
 {top_str}
@@ -780,6 +812,7 @@ class handler(BaseHTTPRequestHandler):
                 fixed_costs = float(body.get('fixed_costs', 0))
                 force_format = body.get('pos_format', '')  # optional override
                 expense_csv_text = body.get('expense_csv', '')
+                time_period_months = float(body.get('time_period_months', 1))
 
                 # Parse CSV if provided as text
                 pos_format = 'generic'
@@ -832,7 +865,7 @@ class handler(BaseHTTPRequestHandler):
                     fixed_costs += expense_general
 
                 # Compute metrics
-                metrics = compute_metrics(normalized, fixed_costs)
+                metrics = compute_metrics(normalized, fixed_costs, time_period_months)
 
                 # Get AI recommendations
                 prompt = build_prompt(metrics)
@@ -846,6 +879,7 @@ class handler(BaseHTTPRequestHandler):
                     'rows_processed': len(normalized),
                     'pos_format_detected': pos_format,
                     'csv_headers': csv_headers,
+                    'time_period_months': time_period_months,
                     'expense_file_used': bool(expense_csv_text),
                     'expense_items_matched': expense_matched,
                     'expense_general_added': _r(expense_general) if expense_csv_text else 0,

@@ -8,6 +8,7 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [fixedCosts, setFixedCosts] = useState('');
+  const [timePeriod, setTimePeriod] = useState('1');
   const [activeTab, setActiveTab] = useState('upload');
   const [fileName, setFileName] = useState('');
   const [backendStatus, setBackendStatus] = useState('checking');
@@ -129,6 +130,7 @@ function App() {
       const payload = {
         csv: csvText,
         fixed_costs: parseFloat(fixedCosts) || 0,
+        time_period_months: parseFloat(timePeriod) || 1,
       };
       if (expenseCsvText) payload.expense_csv = expenseCsvText;
       const res = await fetch(`${API_URL}/api/analyze`, {
@@ -186,6 +188,8 @@ function App() {
   };
 
   const s = results?.metrics?.summary;
+  const tp = results?.time_period_months || 1;
+  const PERIOD_LABELS = {'1':'1 Month','3':'3 Months','6':'6 Months','12':'1 Year'};
 
   const POS_LABELS = {
     square: 'Square POS',
@@ -284,6 +288,28 @@ function App() {
                 </div>
               </div>
               <div>
+                <label className="block text-sm text-gray-500 mb-2">Data Time Period</label>
+                <div className="flex gap-2">
+                  {[{v:'1',l:'1 Month'},{v:'3',l:'3 Months'},{v:'6',l:'6 Months'},{v:'12',l:'1 Year'}].map(({v,l}) => (
+                    <button
+                      key={v}
+                      onClick={() => setTimePeriod(v)}
+                      className={`flex-1 py-3 px-2 rounded-xl text-sm font-medium border transition-all ${
+                        timePeriod === v
+                          ? 'bg-xero-blue text-white border-xero-blue shadow-sm'
+                          : 'bg-dark-700 text-gray-500 border-dark-600 hover:border-xero-blue/50 hover:text-xero-dark'
+                      }`}
+                    >
+                      {l}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[11px] text-gray-400 mt-1.5">How much time does your sales data cover?</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+              <div>
                 <label className="block text-sm text-gray-500 mb-2">Expense / Cost File <span className="text-gray-400">(optional)</span></label>
                 <input
                   ref={expenseFileRef}
@@ -310,18 +336,18 @@ function App() {
                 </div>
                 <p className="text-[11px] text-gray-400 mt-1.5">Item costs, ingredient costs, or general expenses — we'll match them to your sales data.</p>
               </div>
-            </div>
-
-            <div>
-              <label className="block text-sm text-gray-500 mb-2">Monthly Fixed Costs <span className="text-gray-400">(optional manual entry)</span></label>
-              <div className="relative w-full md:w-1/2">
-                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-semibold">$</span>
-                <input
-                  type="number" min="0" value={fixedCosts}
-                  onChange={(e) => setFixedCosts(e.target.value)}
-                  placeholder="e.g. 3500 (rent, salaries, utilities)"
-                  className="w-full bg-dark-700 border border-dark-600 rounded-xl pl-8 pr-4 py-3 text-xero-dark focus:outline-none focus:border-xero-blue/50 focus:ring-1 focus:ring-xero-blue/20 transition-all"
-                />
+              <div>
+                <label className="block text-sm text-gray-500 mb-2">Monthly Fixed Costs <span className="text-gray-400">(optional manual entry)</span></label>
+                <div className="relative">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-semibold">$</span>
+                  <input
+                    type="number" min="0" value={fixedCosts}
+                    onChange={(e) => setFixedCosts(e.target.value)}
+                    placeholder="e.g. 3500 (rent, salaries, utilities)"
+                    className="w-full bg-dark-700 border border-dark-600 rounded-xl pl-8 pr-4 py-3 text-xero-dark focus:outline-none focus:border-xero-blue/50 focus:ring-1 focus:ring-xero-blue/20 transition-all"
+                  />
+                </div>
+                <p className="text-[11px] text-gray-400 mt-1.5">Rent, wages, utilities — not included in sales data.</p>
               </div>
             </div>
 
@@ -378,6 +404,7 @@ function App() {
                   <h2 className="text-base font-semibold text-xero-dark">Financial Report</h2>
                   <p className="text-xs text-gray-400 mt-0.5">
                     {results.rows_processed} transactions · {s.num_days} day{s.num_days !== 1 ? 's' : ''}
+                    {tp > 1 && <> · {PERIOD_LABELS[String(tp)] || `${tp} months`}</>}
                     {results.pos_format_detected && <> · {POS_LABELS[results.pos_format_detected] || results.pos_format_detected}</>}
                   </p>
                 </div>
@@ -408,11 +435,20 @@ function App() {
 
             {/* KPI Strip */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-              <XeroKPI label="Total Revenue" value={`$${s.total_revenue.toLocaleString()}`} />
+              <XeroKPI label={tp > 1 ? `Total Revenue (${PERIOD_LABELS[String(tp)] || tp+'mo'})` : 'Total Revenue'} value={`$${s.total_revenue.toLocaleString()}`} />
               <XeroKPI label="Gross Profit" value={`$${s.gross_profit.toLocaleString()}`} sub={`${s.gross_margin_pct}% margin`} color={s.gross_margin_pct >= 65 ? 'gain' : s.gross_margin_pct >= 50 ? 'accent' : 'loss'} />
               <XeroKPI label="Net Profit" value={`$${s.net_profit.toLocaleString()}`} sub={`${s.net_margin_pct}% margin`} color={s.net_profit >= 0 ? 'gain' : 'loss'} />
               <XeroKPI label="Food Cost %" value={`${s.food_cost_pct}%`} sub="Industry: 28–32%" color={s.food_cost_pct <= 32 ? 'gain' : s.food_cost_pct <= 38 ? 'accent' : 'loss'} />
             </div>
+
+            {tp > 1 && (
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                <XeroKPI label="Monthly Revenue" value={`$${s.monthly_revenue?.toLocaleString() ?? Math.round(s.total_revenue/tp).toLocaleString()}`} sub="avg per month" color="accent" />
+                <XeroKPI label="Monthly Profit" value={`$${s.monthly_net_profit?.toLocaleString() ?? Math.round(s.net_profit/tp).toLocaleString()}`} sub="avg per month" color={s.net_profit >= 0 ? 'gain' : 'loss'} />
+                <XeroKPI label="Annual Projection" value={`$${s.annual_revenue?.toLocaleString() ?? Math.round(s.total_revenue/tp*12).toLocaleString()}`} sub="projected" />
+                <XeroKPI label="Annual Profit" value={`$${s.annual_net_profit?.toLocaleString() ?? Math.round(s.net_profit/tp*12).toLocaleString()}`} sub="projected" color={s.net_profit >= 0 ? 'gain' : 'loss'} />
+              </div>
+            )}
 
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
               <XeroKPI label="Avg Order Value" value={`$${s.avg_order_value}`} />
