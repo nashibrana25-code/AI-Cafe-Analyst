@@ -469,7 +469,7 @@ function App() {
                     <XeroPLRow label="Revenue" value={s.total_revenue} bold />
                     <XeroPLRow label="Less Cost of Goods Sold" value={s.total_cogs} indent deduct />
                     <XeroPLRow label="Gross Profit" value={s.gross_profit} bold border color={s.gross_profit >= 0 ? 'gain' : 'loss'} />
-                    <XeroPLRow label="Less Fixed Costs" value={s.fixed_costs} indent deduct />
+                    <XeroPLRow label={tp > 1 ? `Less Fixed Costs ($${s.monthly_fixed_costs?.toLocaleString() ?? s.fixed_costs}/mo × ${tp}mo)` : 'Less Fixed Costs'} value={s.fixed_costs} indent deduct />
                     <XeroPLRow label="Net Profit" value={s.net_profit} bold border color={s.net_profit >= 0 ? 'gain' : 'loss'} />
                   </tbody>
                 </table>

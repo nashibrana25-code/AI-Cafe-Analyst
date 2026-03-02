@@ -412,7 +412,11 @@ def compute_metrics(normalized_rows, fixed_costs=0, time_period_months=1):
     Compute cafe financial metrics from normalized rows.
     Each row: { item, category, quantity, revenue (total), cost (total), date }
     time_period_months: how many months the data covers (for projections).
+    fixed_costs: monthly fixed costs — will be multiplied by time_period_months.
     """
+    tp = max(time_period_months, 1)
+    monthly_fixed = fixed_costs
+    total_fixed = fixed_costs * tp
     total_revenue = 0
     total_cogs = 0
     total_units = 0
@@ -461,14 +465,14 @@ def compute_metrics(normalized_rows, fixed_costs=0, time_period_months=1):
 
     gross_profit = total_revenue - total_cogs
     gross_margin = (gross_profit / total_revenue * 100) if total_revenue else 0
-    net_profit = gross_profit - fixed_costs
+    net_profit = gross_profit - total_fixed
     net_margin = (net_profit / total_revenue * 100) if total_revenue else 0
     food_cost_pct = (total_cogs / total_revenue * 100) if total_revenue else 0
     avg_order_value = (total_revenue / total_units) if total_units else 0
 
-    # Break-even (units needed to cover fixed costs)
+    # Break-even (units needed to cover fixed costs for the period)
     avg_contribution = (gross_profit / total_units) if total_units else 0
-    break_even_units = int(fixed_costs / avg_contribution) if avg_contribution > 0 else 0
+    break_even_units = int(total_fixed / avg_contribution) if avg_contribution > 0 else 0
 
     # Top items by profit
     top_items = sorted(items.items(), key=lambda x: x[1]['profit'], reverse=True)[:10]
@@ -480,7 +484,6 @@ def compute_metrics(normalized_rows, fixed_costs=0, time_period_months=1):
     avg_daily_transactions = sum(d['transactions'] for d in daily.values()) / num_days
 
     # Monthly and annual projections
-    tp = max(time_period_months, 1)
     monthly_revenue = total_revenue / tp
     monthly_cogs = total_cogs / tp
     monthly_gross_profit = gross_profit / tp
@@ -496,7 +499,8 @@ def compute_metrics(normalized_rows, fixed_costs=0, time_period_months=1):
             'total_cogs': _r(total_cogs),
             'gross_profit': _r(gross_profit),
             'gross_margin_pct': _r(gross_margin),
-            'fixed_costs': _r(fixed_costs),
+            'monthly_fixed_costs': _r(monthly_fixed),
+            'fixed_costs': _r(total_fixed),
             'net_profit': _r(net_profit),
             'net_margin_pct': _r(net_margin),
             'food_cost_pct': _r(food_cost_pct),
@@ -612,7 +616,7 @@ FINANCIAL SUMMARY (for the full period):
 - Total Revenue: ${s['total_revenue']}
 - Total COGS: ${s['total_cogs']}
 - Gross Profit: ${s['gross_profit']} (Margin: {s['gross_margin_pct']}%)
-- Fixed Costs: ${s['fixed_costs']}
+- Fixed Costs: ${s['fixed_costs']} (${s.get('monthly_fixed_costs', s['fixed_costs'])}/month × {s.get('time_period_months', 1)} months)
 - Net Profit: ${s['net_profit']} (Margin: {s['net_margin_pct']}%)
 - Food Cost %: {s['food_cost_pct']}%
 - Avg Order Value: ${s['avg_order_value']}
@@ -862,7 +866,9 @@ class handler(BaseHTTPRequestHandler):
                                     expense_matched += 1
                         else:
                             expense_general += cat_cost
-                    fixed_costs += expense_general
+                    # Expense general costs are total for the period, not monthly.
+                    # Convert to monthly equivalent so compute_metrics scales correctly.
+                    fixed_costs += expense_general / time_period_months
 
                 # Compute metrics
                 metrics = compute_metrics(normalized, fixed_costs, time_period_months)
