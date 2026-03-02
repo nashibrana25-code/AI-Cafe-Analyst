@@ -41,6 +41,16 @@ POS_COLUMN_MAPS = {
         'modifiers': ['modifiers', 'modifier'],
         'variation': ['variation', 'item_variation'],
     },
+    'square_summary': {
+        # Square Summary Report (Section/Type/Name/Variation/Quantity/Amount)
+        'item': ['name', 'item_name', 'item'],
+        'category': ['section', 'type', 'parent_item'],
+        'quantity': ['quantity'],
+        'gross_revenue': ['amount_aud', 'amount_nzd', 'amount_usd', 'amount_gbp',
+                          'amount_eur', 'amount_cad', 'amount_jpy', 'amount_inr',
+                          'amount_sgd', 'amount_hkd', 'amount_myr', 'amount'],
+        'variation': ['variation'],
+    },
     'lightspeed': {
         # Lightspeed Restaurant / Retail CSV export
         'item': ['product', 'product_name', 'item', 'description', 'item_name', 'menu_item'],
@@ -93,13 +103,34 @@ POS_COLUMN_MAPS = {
     },
     'generic': {
         # Fallback — any custom CSV
-        'item': ['item', 'product', 'item_name', 'product_name', 'menu_item', 'name', 'description'],
-        'category': ['category', 'type', 'group', 'department', 'menu_group'],
-        'quantity': ['quantity', 'qty', 'units_sold', 'count', 'unit_qty'],
-        'price_per_unit': ['price', 'sale_price', 'selling_price', 'unit_price'],
-        'gross_revenue': ['revenue', 'amount', 'total', 'gross_sales', 'net_sales', 'sales'],
-        'cost': ['cost', 'cogs', 'cost_price', 'unit_cost', 'cost_of_goods'],
-        'date': ['date', 'order_date', 'transaction_date', 'day', 'sale_date'],
+        'item': ['item', 'product', 'item_name', 'product_name', 'menu_item', 'name', 'description',
+                 'item_description', 'product_description', 'menu_name', 'item_title', 'line_item',
+                 'sku_name', 'goods', 'service', 'food_item', 'drink', 'beverage'],
+        'category': ['category', 'type', 'group', 'department', 'menu_group', 'product_type',
+                     'item_category', 'item_group', 'item_type', 'class', 'sub_category',
+                     'subcategory', 'product_group', 'section', 'family'],
+        'quantity': ['quantity', 'qty', 'units_sold', 'count', 'unit_qty', 'num_sold',
+                     'items_sold', 'units', 'sold', 'number_sold', 'quantity_sold', 'volume'],
+        'price_per_unit': ['price', 'sale_price', 'selling_price', 'unit_price', 'price_each',
+                           'unit_amount', 'each', 'retail_price', 'sell_price', 'price_inc',
+                           'price_ex', 'price_incl', 'price_excl', 'item_price', 'unit_revenue',
+                           'average_price', 'avg_price'],
+        'gross_revenue': ['revenue', 'amount', 'total', 'gross_sales', 'net_sales', 'sales',
+                          'total_sales', 'total_revenue', 'gross_revenue', 'net_revenue',
+                          'total_amount', 'sale_amount', 'line_total', 'subtotal', 'sub_total',
+                          'gross_amount', 'net_amount', 'turnover', 'income', 'total_inc',
+                          'total_ex', 'total_incl', 'total_excl', 'value', 'sales_amount',
+                          'extended_amount', 'ext_price', 'line_amount', 'total_price',
+                          'sales_value', 'revenue_amount',
+                          # Currency-suffixed amount columns (Amount_AUD, Amount_NZD, etc.)
+                          'amount_aud', 'amount_nzd', 'amount_usd', 'amount_gbp',
+                          'amount_eur', 'amount_cad', 'amount_jpy', 'amount_inr',
+                          'amount_sgd', 'amount_hkd', 'amount_myr'],
+        'cost': ['cost', 'cogs', 'cost_price', 'unit_cost', 'cost_of_goods', 'cost_each',
+                 'purchase_price', 'buy_price', 'cost_amount', 'total_cost', 'item_cost',
+                 'food_cost', 'ingredient_cost', 'material_cost', 'cost_per_unit'],
+        'date': ['date', 'order_date', 'transaction_date', 'day', 'sale_date', 'created_at',
+                 'sold_date', 'report_date', 'period', 'business_date', 'trans_date'],
     },
 }
 
@@ -107,6 +138,12 @@ POS_COLUMN_MAPS = {
 def detect_pos_format(headers):
     """Auto-detect which POS system exported this CSV based on column names."""
     h_lower = {h.strip().lower().replace(' ', '_') for h in headers}
+
+    # Square Summary Report: has 'section' + ('name' or 'item_name') + amount column (Amount_AUD etc)
+    if 'section' in h_lower and ('name' in h_lower or 'item_name' in h_lower):
+        amount_cols = {c for c in h_lower if c.startswith('amount')}
+        if amount_cols:
+            return 'square_summary'
 
     # Square: has 'gross_sales' + 'net_sales' columns (very distinctive)
     if h_lower & {'gross_sales', 'net_sales'}:
@@ -148,6 +185,15 @@ def normalize_row(row, pos_format):
     qty = _flex_num(row, col_map.get('quantity', [])) or 1
     date = _flex_str(row, col_map.get('date', []))
 
+    # Square Summary: append variation to item name, category isn't in the data per-row
+    if pos_format == 'square_summary':
+        variation = _flex_str(row, col_map.get('variation', []))
+        if variation:
+            item = f"{item} ({variation})"
+        # The 'Type' column is just "Item" for all item rows — not useful as category
+        # Category info would need the Category Sales section; leave blank
+        category = ''
+
     # --- Revenue calculation (handle POS-specific logic) ---
     gross_rev = _flex_num(row, col_map.get('gross_revenue', []))
     net_rev = _flex_num(row, col_map.get('net_revenue', []))
@@ -157,6 +203,9 @@ def normalize_row(row, pos_format):
     if pos_format == 'square':
         # Square: Net Sales = Gross Sales - Discounts (already totals, use Net Sales)
         revenue = net_rev if net_rev else (gross_rev - discount)
+    elif pos_format == 'square_summary':
+        # Square Summary: Amount column is total revenue for the line
+        revenue = gross_rev
     elif pos_format in ('toast', 'clover', 'shopify'):
         # These POS systems export total amounts per line
         revenue = net_rev if net_rev else (gross_rev - discount)
@@ -176,7 +225,7 @@ def normalize_row(row, pos_format):
     cost_total = _flex_num(row, col_map.get('cost', []))
     gross_profit_val = _flex_num(row, col_map.get('gross_profit', []))
 
-    if pos_format in ('square', 'toast', 'clover', 'shopify', 'lightspeed'):
+    if pos_format in ('square', 'square_summary', 'toast', 'clover', 'shopify', 'lightspeed'):
         # POS costs are typically total cost for the line
         if cost_total > 0:
             cost = cost_total
@@ -366,12 +415,14 @@ def call_groq(prompt, max_tokens=600):
             {
                 'role': 'system',
                 'content': (
-                    'You are an expert cafe business and financial analyst. '
-                    'Provide specific, actionable, data-driven recommendations. '
-                    'Focus on: cost control, pricing strategy, menu optimization, '
-                    'labor efficiency, waste reduction, and revenue growth. '
-                    'Use the numbers provided. Be direct and practical. '
-                    'Format with clear headers and bullet points.'
+                    'You are a friendly, experienced cafe business advisor having a conversation '
+                    'with a cafe owner. Write in a warm, approachable tone — like a mentor giving advice over coffee. '
+                    'Use plain language, avoid jargon. Be specific with numbers from the data. '
+                    'Structure your response with these exact emoji headers on their own line:\n'
+                    '🔥 Quick Wins\n💰 Pricing Tips\n📋 Menu Moves\n✂️ Cut Costs\n📈 Grow Revenue\n💡 Pro Tip\n'
+                    'Under each header, write 2-3 short conversational paragraphs (not bullet lists). '
+                    'Start each section with the most impactful advice. Keep it practical and encouraging. '
+                    'End with a single motivating sentence.'
                 ),
             },
             {'role': 'user', 'content': prompt},
@@ -386,12 +437,16 @@ def call_groq(prompt, max_tokens=600):
         headers={
             'Content-Type': 'application/json',
             'Authorization': f'Bearer {GROQ_API_KEY}',
+            'User-Agent': 'AI-Cafe-Analyst/2.0',
         },
     )
     try:
         with urllib.request.urlopen(req, timeout=15) as resp:
             data = json.loads(resp.read())
             return data['choices'][0]['message']['content']
+    except urllib.error.HTTPError as e:
+        error_body = e.read().decode() if e.fp else ''
+        return f'AI analysis unavailable: {e} — {error_body}'
     except Exception as e:
         return f'AI analysis unavailable: {e}'
 
@@ -441,33 +496,52 @@ CATEGORY BREAKDOWN:
 
 Industry benchmarks: food cost 28-32%, gross margin 65-70%, net margin 5-15%.
 
-Provide:
-1. URGENT actions (quick wins this week)
-2. PRICING recommendations (specific items to reprice)
-3. MENU optimization (what to promote, what to remove)
-4. COST REDUCTION strategies
-5. REVENUE GROWTH opportunities
-6. CASH FLOW advice"""
+Give me friendly, practical advice using the emoji section headers (🔥 Quick Wins, 💰 Pricing Tips, 📋 Menu Moves, ✂️ Cut Costs, 📈 Grow Revenue, 💡 Pro Tip). Write short paragraphs, not bullet lists. Be specific with dollar amounts and percentages from the data. Keep it encouraging and actionable."""
 
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
 
+# Common currency suffixes for flexible column matching
+_CURRENCY_SUFFIXES = (
+    '_aud', '_nzd', '_usd', '_gbp', '_eur', '_cad', '_jpy', '_inr',
+    '_sgd', '_hkd', '_myr', '_chf', '_sek', '_nok', '_dkk', '_krw',
+    '_thb', '_php', '_idr', '_vnd', '_zar', '_brl', '_mxn', '_clp',
+)
+
+
 def _flex_num(row, key_options):
-    """Extract a numeric value from a row, trying multiple possible column names."""
+    """Extract a numeric value from a row, trying multiple possible column names.
+    Also handles currency-suffixed variants (e.g. amount_aud matches 'amount')."""
     for k in key_options:
         for rk in row:
-            if rk.strip().lower().replace(' ', '_') == k:
-                try:
-                    val = str(row[rk]).strip()
-                    # Remove currency symbols, commas, parentheses (accounting negatives)
-                    val = val.replace('$', '').replace(',', '').replace('(', '-').replace(')', '')
-                    val = val.strip()
-                    if not val or val.lower() in ('nan', 'n/a', '', '-', '--'):
-                        continue
-                    return float(val)
-                except (ValueError, TypeError):
-                    continue
+            rk_norm = rk.strip().lower().replace(' ', '_')
+            if rk_norm == k:
+                v = _parse_num(row[rk])
+                if v is not None:
+                    return v
+    # Fallback: try stripping currency suffix from column names
+    for k in key_options:
+        for rk in row:
+            rk_norm = rk.strip().lower().replace(' ', '_')
+            for sfx in _CURRENCY_SUFFIXES:
+                if rk_norm == k + sfx or (rk_norm.endswith(sfx) and rk_norm[:-len(sfx)] == k):
+                    v = _parse_num(row[rk])
+                    if v is not None:
+                        return v
     return 0
+
+
+def _parse_num(raw):
+    """Parse a raw cell value into a float, or return None."""
+    try:
+        val = str(raw).strip()
+        val = val.replace('$', '').replace(',', '').replace('(', '-').replace(')', '')
+        val = val.strip()
+        if not val or val.lower() in ('nan', 'n/a', '', '-', '--'):
+            return None
+        return float(val)
+    except (ValueError, TypeError):
+        return None
 
 
 def _flex_str(row, key_options):
@@ -519,7 +593,38 @@ def parse_csv_text(text):
     # Detect POS format from headers
     pos_format = detect_pos_format(headers) if headers else 'generic'
 
-    return rows, pos_format
+    # Square Summary Report: filter to "Item Sales" rows only (avoid double-counting)
+    if pos_format == 'square_summary':
+        rows = _filter_square_summary(rows)
+
+    return rows, pos_format, headers
+
+
+def _filter_square_summary(rows):
+    """
+    Square Summary CSVs have sections: Summary, Payments, Category Sales, Item Sales.
+    Keep only 'Item Sales' rows to get item-level detail.
+    If no 'Item Sales' rows, fall back to 'Category Sales'.
+    """
+    # Find the section column key (case-insensitive)
+    section_key = None
+    if rows:
+        for k in rows[0]:
+            if k.strip().lower() == 'section':
+                section_key = k
+                break
+    if not section_key:
+        return rows
+
+    item_rows = [r for r in rows if r.get(section_key, '').strip().lower() == 'item sales']
+    if item_rows:
+        return item_rows
+
+    cat_rows = [r for r in rows if r.get(section_key, '').strip().lower() == 'category sales']
+    if cat_rows:
+        return cat_rows
+
+    return rows
 
 
 # ─── HTTP Handler ─────────────────────────────────────────────────────────
@@ -538,7 +643,7 @@ class handler(BaseHTTPRequestHandler):
                 'status': 'online',
                 'ai_enabled': bool(GROQ_API_KEY),
                 'ai_model': GROQ_MODEL if GROQ_API_KEY else None,
-                'supported_pos': ['square', 'lightspeed', 'toast', 'clover', 'shopify', 'generic'],
+                'supported_pos': ['square', 'square_summary', 'lightspeed', 'toast', 'clover', 'shopify', 'generic'],
                 'endpoints': {
                     'POST /api/analyze': 'Upload cafe data and get financial analysis + AI recommendations',
                     'GET /api/health': 'Health check',
@@ -565,8 +670,9 @@ class handler(BaseHTTPRequestHandler):
 
                 # Parse CSV if provided as text
                 pos_format = 'generic'
+                csv_headers = []
                 if csv_text and not rows:
-                    rows, pos_format = parse_csv_text(csv_text)
+                    rows, pos_format, csv_headers = parse_csv_text(csv_text)
 
                 # Allow client to override detected format
                 if force_format and force_format in POS_COLUMN_MAPS:
@@ -603,6 +709,7 @@ class handler(BaseHTTPRequestHandler):
                     'analyzed_at': datetime.utcnow().isoformat(),
                     'rows_processed': len(normalized),
                     'pos_format_detected': pos_format,
+                    'csv_headers': csv_headers,
                 }
 
                 self._json(200, result)

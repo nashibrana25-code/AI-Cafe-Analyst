@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import * as XLSX from 'xlsx';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
@@ -11,6 +12,7 @@ function App() {
   const [fileName, setFileName] = useState('');
   const [backendStatus, setBackendStatus] = useState('checking');
   const [aiStatus, setAiStatus] = useState('checking');
+  const [csvText, setCsvText] = useState('');
   const fileRef = useRef();
 
   // ─── Health Check on Mount ───────────────────────────────────────────────
@@ -31,13 +33,48 @@ function App() {
     return () => clearInterval(interval);
   }, []);
 
-  // ─── CSV Upload ──────────────────────────────────────────────────────
+  // ─── File Upload (CSV, Excel, JSON) ────────────────────────────────────
   const handleFile = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
     setFileName(file.name);
-    const text = await file.text();
-    await analyze(text);
+    setError('');
+
+    const ext = file.name.split('.').pop().toLowerCase();
+
+    try {
+      if (ext === 'xlsx' || ext === 'xls') {
+        // Excel: parse with SheetJS, convert first sheet to CSV
+        const buf = await file.arrayBuffer();
+        const wb = XLSX.read(buf, { type: 'array' });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const csv = XLSX.utils.sheet_to_csv(ws);
+        setCsvText(csv);
+      } else if (ext === 'json') {
+        // JSON: convert array of objects to CSV
+        const raw = await file.text();
+        const data = JSON.parse(raw);
+        const rows = Array.isArray(data) ? data : (data.data || data.rows || data.items || [data]);
+        if (!rows.length) throw new Error('JSON file has no data rows');
+        const headers = Object.keys(rows[0]);
+        const csvLines = [headers.join(',')];
+        for (const row of rows) {
+          csvLines.push(headers.map(h => {
+            const v = String(row[h] ?? '');
+            return v.includes(',') || v.includes('"') ? `"${v.replace(/"/g, '""')}"` : v;
+          }).join(','));
+        }
+        setCsvText(csvLines.join('\n'));
+      } else {
+        // CSV / TSV / TXT: read as text
+        const text = await file.text();
+        setCsvText(text);
+      }
+    } catch (err) {
+      setError(`Could not read file: ${err.message}`);
+      setCsvText('');
+      setFileName('');
+    }
   };
 
   const analyze = async (csvText) => {
@@ -99,13 +136,14 @@ function App() {
 2026-01-03,Chai Latte,Coffee,5.50,1.30,12`;
     setFixedCosts('3500');
     setFileName('sample_cafe_data.csv');
-    analyze(csv);
+    setCsvText(csv);
   };
 
   const s = results?.metrics?.summary;
 
   const POS_LABELS = {
     square: 'Square POS',
+    square_summary: 'Square POS (Summary)',
     lightspeed: 'Lightspeed POS',
     toast: 'Toast POS',
     clover: 'Clover POS',
@@ -172,7 +210,7 @@ function App() {
         {activeTab === 'upload' && (
           <div className="bg-white border border-dark-600/50 rounded-2xl p-6 md:p-8 shadow-sm">
             <h2 className="text-xl font-semibold mb-2 text-xero-dark">Upload Cafe Data</h2>
-            <p className="text-sm text-gray-500 mb-6">Export a CSV from your POS system and upload it here. We auto-detect the format.</p>
+            <p className="text-sm text-gray-500 mb-6">Upload a CSV, Excel (.xlsx), or JSON file from your POS system. We auto-detect the format.</p>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
               <div>
@@ -188,30 +226,42 @@ function App() {
                 </div>
               </div>
               <div>
-                <label className="block text-sm text-gray-500 mb-2">Sales CSV File</label>
+                <label className="block text-sm text-gray-500 mb-2">Sales Data File</label>
                 <input
                   ref={fileRef}
                   type="file"
-                  accept=".csv,.tsv,.txt"
+                  accept=".csv,.tsv,.txt,.xlsx,.xls,.json"
                   onChange={handleFile}
                   className="hidden"
                 />
-                <button
-                  onClick={() => fileRef.current?.click()}
-                  className="w-full bg-dark-700 border border-dashed border-dark-600 rounded-xl py-3 px-4 text-gray-500 hover:border-xero-blue/50 hover:text-xero-dark transition-all text-left"
-                >
-                  {fileName || '📁 Choose CSV file...'}
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => fileRef.current?.click()}
+                    className="flex-1 bg-dark-700 border border-dashed border-dark-600 rounded-xl py-3 px-4 text-gray-500 hover:border-xero-blue/50 hover:text-xero-dark transition-all text-left"
+                  >
+                    {fileName || 'Choose file (CSV, Excel, JSON)...'}
+                  </button>
+                  <button
+                    onClick={loadSample}
+                    className="text-xs text-xero-blue hover:text-xero-teal font-medium px-3 py-3 rounded-xl border border-dark-600/50 hover:border-xero-blue/30 transition-all whitespace-nowrap"
+                  >
+                    Use sample
+                  </button>
+                </div>
               </div>
             </div>
 
             <div className="flex flex-wrap items-center gap-3 mb-5">
               <button
-                onClick={loadSample}
-                className="bg-xero-blue hover:bg-xero-teal text-white font-semibold px-6 py-3 rounded-xl transition-all shadow-sm"
+                onClick={() => csvText && analyze(csvText)}
+                disabled={!csvText || loading}
+                className="bg-xero-blue hover:bg-xero-teal disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold px-8 py-3 rounded-xl transition-all shadow-sm"
               >
-                ▶ Try with Sample Data
+                {loading ? 'Analysing...' : 'Analyse'}
               </button>
+              {csvText && !loading && (
+                <span className="text-xs text-gray-400">Ready to analyse {fileName}</span>
+              )}
             </div>
 
             {/* POS Export Guide */}
@@ -223,7 +273,7 @@ function App() {
                 <span><strong className="text-gray-600">Toast:</strong> Reports → Sales Summary → Download CSV</span>
                 <span><strong className="text-gray-600">Clover:</strong> Sales → Transactions → Export</span>
                 <span><strong className="text-gray-600">Shopify:</strong> Analytics → Reports → Export CSV</span>
-                <span><strong className="text-gray-600">Other:</strong> Any CSV with item, sales, quantity columns</span>
+                <span><strong className="text-gray-600">Other:</strong> Any CSV, Excel, or JSON with item, sales, quantity columns</span>
               </div>
             </div>
 
@@ -243,119 +293,174 @@ function App() {
           </div>
         )}
 
-        {/* Report Tab */}
+        {/* Report Tab — Xero-style */}
         {activeTab === 'report' && results && (
-          <div className="space-y-6">
-            {/* Detected Format Banner */}
-            {results.pos_format_detected && (
-              <div className="flex items-center gap-2 bg-white border border-dark-600/40 rounded-xl px-4 py-2.5 shadow-sm">
-                <span className="text-sm">🔌</span>
-                <span className="text-sm text-gray-600">
-                  Detected: <strong className="text-xero-dark">{POS_LABELS[results.pos_format_detected] || results.pos_format_detected}</strong>
-                </span>
-                <span className="text-xs text-gray-400 ml-auto">{results.rows_processed} rows processed</span>
+          <div className="space-y-5">
+            {/* Report Header Bar */}
+            <div className="bg-white border border-dark-600/30 rounded-lg overflow-hidden shadow-sm">
+              <div className="h-1 bg-xero-blue"></div>
+              <div className="px-5 py-3 flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-base font-semibold text-xero-dark">Financial Report</h2>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    {results.rows_processed} transactions · {s.num_days} day{s.num_days !== 1 ? 's' : ''}
+                    {results.pos_format_detected && <> · {POS_LABELS[results.pos_format_detected] || results.pos_format_detected}</>}
+                  </p>
+                </div>
                 {!results.metrics.summary.total_cogs && (
-                  <span className="text-[10px] bg-amber-50 text-amber-600 px-2 py-0.5 rounded-md border border-amber-200">
-                    Tip: Add cost data for margin analysis
+                  <span className="text-[11px] bg-amber-50 text-amber-700 px-2.5 py-1 rounded border border-amber-200 font-medium">
+                    Add cost data for margin analysis
                   </span>
                 )}
               </div>
-            )}
-
-            {/* KPI Cards */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <KPI label="Revenue" value={`$${s.total_revenue.toLocaleString()}`} />
-              <KPI label="Gross Profit" value={`$${s.gross_profit.toLocaleString()}`} sub={`${s.gross_margin_pct}% margin`} color={s.gross_margin_pct >= 65 ? 'gain' : s.gross_margin_pct >= 50 ? 'accent' : 'loss'} />
-              <KPI label="Net Profit" value={`$${s.net_profit.toLocaleString()}`} sub={`${s.net_margin_pct}% margin`} color={s.net_profit >= 0 ? 'gain' : 'loss'} />
-              <KPI label="Food Cost" value={`${s.food_cost_pct}%`} sub="Target: 28-32%" color={s.food_cost_pct <= 32 ? 'gain' : s.food_cost_pct <= 38 ? 'accent' : 'loss'} />
+              {/* Column detection warning */}
+              {s.total_revenue === 0 && results.csv_headers && results.csv_headers.length > 0 && (
+                <div className="mx-5 mb-4 bg-amber-50 border border-amber-200 rounded-lg p-3">
+                  <p className="text-xs font-semibold text-amber-800 mb-1">Revenue is $0 — column names may not match</p>
+                  <p className="text-[11px] text-amber-700 mb-1.5">
+                    Your columns: <span className="font-mono">{results.csv_headers.join(', ')}</span>
+                  </p>
+                  <p className="text-[11px] text-amber-600">
+                    We look for columns like: price, revenue, total, amount, amount_aud, sales, gross_sales. Currency-suffixed columns (e.g. Amount_AUD) are also supported.
+                  </p>
+                </div>
+              )}
             </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <KPI label="Avg Order Value" value={`$${s.avg_order_value}`} />
-              <KPI label="Units Sold" value={s.total_units_sold.toLocaleString()} />
-              <KPI label="Break-Even" value={`${s.break_even_units} units`} sub="to cover fixed costs" />
-              <KPI label="Daily Revenue" value={`$${s.avg_daily_revenue}`} sub={`${s.avg_daily_transactions} orders/day`} />
+            {/* KPI Strip */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              <XeroKPI label="Total Revenue" value={`$${s.total_revenue.toLocaleString()}`} />
+              <XeroKPI label="Gross Profit" value={`$${s.gross_profit.toLocaleString()}`} sub={`${s.gross_margin_pct}% margin`} color={s.gross_margin_pct >= 65 ? 'gain' : s.gross_margin_pct >= 50 ? 'accent' : 'loss'} />
+              <XeroKPI label="Net Profit" value={`$${s.net_profit.toLocaleString()}`} sub={`${s.net_margin_pct}% margin`} color={s.net_profit >= 0 ? 'gain' : 'loss'} />
+              <XeroKPI label="Food Cost %" value={`${s.food_cost_pct}%`} sub="Industry: 28–32%" color={s.food_cost_pct <= 32 ? 'gain' : s.food_cost_pct <= 38 ? 'accent' : 'loss'} />
             </div>
 
-            {/* P&L Statement */}
-            <div className="bg-white border border-dark-600/50 rounded-2xl p-6 shadow-sm">
-              <h3 className="text-lg font-semibold mb-4 text-xero-dark">Profit & Loss Summary</h3>
-              <div className="space-y-2 text-sm">
-                <PLRow label="Total Revenue" value={s.total_revenue} bold />
-                <PLRow label="Cost of Goods Sold" value={-s.total_cogs} negative />
-                <div className="border-t border-dark-600/50 my-2"></div>
-                <PLRow label="Gross Profit" value={s.gross_profit} bold color={s.gross_profit >= 0 ? 'gain' : 'loss'} />
-                <PLRow label="Fixed Costs" value={-s.fixed_costs} negative />
-                <div className="border-t border-dark-600/50 my-2"></div>
-                <PLRow label="Net Profit" value={s.net_profit} bold color={s.net_profit >= 0 ? 'gain' : 'loss'} />
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              <XeroKPI label="Avg Order Value" value={`$${s.avg_order_value}`} />
+              <XeroKPI label="Units Sold" value={s.total_units_sold.toLocaleString()} />
+              <XeroKPI label="Break-even" value={`${s.break_even_units} units`} sub="to cover fixed costs" />
+              <XeroKPI label="Daily Avg Revenue" value={`$${s.avg_daily_revenue}`} sub={`${s.avg_daily_transactions} txns/day`} />
+            </div>
+
+            {/* Profit & Loss */}
+            <div className="bg-white border border-dark-600/30 rounded-lg overflow-hidden shadow-sm">
+              <div className="h-1 bg-xero-blue"></div>
+              <div className="px-5 pt-4 pb-1">
+                <h3 className="text-sm font-semibold text-xero-dark uppercase tracking-wide">Profit & Loss</h3>
+              </div>
+              <div className="px-5 pb-5">
+                <table className="w-full text-sm">
+                  <tbody>
+                    <XeroPLRow label="Revenue" value={s.total_revenue} bold />
+                    <XeroPLRow label="Less Cost of Goods Sold" value={s.total_cogs} indent deduct />
+                    <XeroPLRow label="Gross Profit" value={s.gross_profit} bold border color={s.gross_profit >= 0 ? 'gain' : 'loss'} />
+                    <XeroPLRow label="Less Fixed Costs" value={s.fixed_costs} indent deduct />
+                    <XeroPLRow label="Net Profit" value={s.net_profit} bold border color={s.net_profit >= 0 ? 'gain' : 'loss'} />
+                  </tbody>
+                </table>
               </div>
             </div>
 
-            {/* Top Items */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="bg-white border border-dark-600/50 rounded-2xl p-6 shadow-sm">
-                <h3 className="text-lg font-semibold mb-4 text-xero-dark">🏆 Top Items by Profit</h3>
-                <div className="space-y-3">
-                  {results.metrics.top_items.map((item, i) => (
-                    <div key={i} className="flex items-center justify-between bg-dark-700/60 rounded-xl px-4 py-3">
-                      <div>
-                        <span className="text-sm font-medium text-xero-dark">{item.name}</span>
-                        <span className="text-xs text-gray-400 ml-2">{item.quantity} sold</span>
-                      </div>
-                      <div className="text-right">
-                        <span className="text-sm font-bold text-gain">${item.profit}</span>
-                        <span className="text-xs text-gray-400 ml-2">profit</span>
-                      </div>
-                    </div>
-                  ))}
+            {/* Items Performance */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+              {/* Top Performers */}
+              <div className="bg-white border border-dark-600/30 rounded-lg overflow-hidden shadow-sm">
+                <div className="h-1 bg-gain"></div>
+                <div className="px-5 pt-4 pb-2">
+                  <h3 className="text-sm font-semibold text-xero-dark uppercase tracking-wide">Top Performers</h3>
                 </div>
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-[11px] text-gray-400 uppercase tracking-wider border-b border-dark-600/30">
+                      <th className="text-left px-5 pb-2">Item</th>
+                      <th className="text-right px-5 pb-2">Qty</th>
+                      <th className="text-right px-5 pb-2">Revenue</th>
+                      <th className="text-right px-5 pb-2">Profit</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {results.metrics.top_items.map((item, i) => (
+                      <tr key={i} className="border-b border-dark-600/20 last:border-0">
+                        <td className="px-5 py-2.5 font-medium text-xero-dark">{item.name}</td>
+                        <td className="px-5 py-2.5 text-right text-gray-500">{item.quantity}</td>
+                        <td className="px-5 py-2.5 text-right text-xero-dark">${item.revenue.toLocaleString()}</td>
+                        <td className="px-5 py-2.5 text-right font-semibold text-gain">${item.profit.toLocaleString()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
 
-              <div className="bg-white border border-dark-600/50 rounded-2xl p-6 shadow-sm">
-                <h3 className="text-lg font-semibold mb-4 text-xero-dark">⚠️ Lowest Performers</h3>
-                <div className="space-y-3">
-                  {results.metrics.worst_items.map((item, i) => (
-                    <div key={i} className="flex items-center justify-between bg-dark-700/60 rounded-xl px-4 py-3">
-                      <div>
-                        <span className="text-sm font-medium text-xero-dark">{item.name}</span>
-                        <span className="text-xs text-gray-400 ml-2">{item.quantity} sold</span>
-                      </div>
-                      <div className="text-right">
-                        <span className={`text-sm font-bold ${item.profit >= 0 ? 'text-amber-500' : 'text-loss'}`}>${item.profit}</span>
-                        <span className="text-xs text-gray-400 ml-2">profit</span>
-                      </div>
-                    </div>
-                  ))}
+              {/* Lowest Performers */}
+              <div className="bg-white border border-dark-600/30 rounded-lg overflow-hidden shadow-sm">
+                <div className="h-1 bg-amber-400"></div>
+                <div className="px-5 pt-4 pb-2">
+                  <h3 className="text-sm font-semibold text-xero-dark uppercase tracking-wide">Needs Attention</h3>
                 </div>
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-[11px] text-gray-400 uppercase tracking-wider border-b border-dark-600/30">
+                      <th className="text-left px-5 pb-2">Item</th>
+                      <th className="text-right px-5 pb-2">Qty</th>
+                      <th className="text-right px-5 pb-2">Revenue</th>
+                      <th className="text-right px-5 pb-2">Profit</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {results.metrics.worst_items.map((item, i) => (
+                      <tr key={i} className="border-b border-dark-600/20 last:border-0">
+                        <td className="px-5 py-2.5 font-medium text-xero-dark">{item.name}</td>
+                        <td className="px-5 py-2.5 text-right text-gray-500">{item.quantity}</td>
+                        <td className="px-5 py-2.5 text-right text-xero-dark">${item.revenue.toLocaleString()}</td>
+                        <td className={`px-5 py-2.5 text-right font-semibold ${item.profit >= 0 ? 'text-amber-500' : 'text-loss'}`}>${item.profit.toLocaleString()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </div>
 
             {/* Category Breakdown */}
             {Object.keys(results.metrics.categories).length > 0 && (
-              <div className="bg-white border border-dark-600/50 rounded-2xl p-6 shadow-sm">
-                <h3 className="text-lg font-semibold mb-4 text-xero-dark">📊 Category Breakdown</h3>
+              <div className="bg-white border border-dark-600/30 rounded-lg overflow-hidden shadow-sm">
+                <div className="h-1 bg-xero-blue"></div>
+                <div className="px-5 pt-4 pb-2">
+                  <h3 className="text-sm font-semibold text-xero-dark uppercase tracking-wide">By Category</h3>
+                </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="text-gray-400 text-xs uppercase tracking-wider">
-                        <th className="text-left pb-3">Category</th>
-                        <th className="text-right pb-3">Revenue</th>
-                        <th className="text-right pb-3">Cost</th>
-                        <th className="text-right pb-3">Profit</th>
-                        <th className="text-right pb-3">Margin</th>
+                      <tr className="text-[11px] text-gray-400 uppercase tracking-wider border-b border-dark-600/30">
+                        <th className="text-left px-5 pb-2">Category</th>
+                        <th className="text-right px-5 pb-2">Revenue</th>
+                        <th className="text-right px-5 pb-2">Cost</th>
+                        <th className="text-right px-5 pb-2">Profit</th>
+                        <th className="text-right px-5 pb-2">Margin</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {Object.entries(results.metrics.categories).map(([cat, d]) => (
-                        <tr key={cat} className="border-t border-dark-600/40">
-                          <td className="py-3 font-medium text-xero-dark">{cat}</td>
-                          <td className="py-3 text-right text-xero-dark">${d.revenue}</td>
-                          <td className="py-3 text-right text-gray-500">${d.cost}</td>
-                          <td className={`py-3 text-right font-semibold ${d.profit >= 0 ? 'text-gain' : 'text-loss'}`}>${d.profit}</td>
-                          <td className="py-3 text-right text-xero-dark">{d.revenue > 0 ? ((d.profit / d.revenue) * 100).toFixed(1) : 0}%</td>
-                        </tr>
-                      ))}
+                      {Object.entries(results.metrics.categories).map(([cat, d]) => {
+                        const margin = d.revenue > 0 ? ((d.profit / d.revenue) * 100).toFixed(1) : '0.0';
+                        return (
+                          <tr key={cat} className="border-b border-dark-600/20 last:border-0">
+                            <td className="px-5 py-2.5 font-medium text-xero-dark">{cat}</td>
+                            <td className="px-5 py-2.5 text-right text-xero-dark">${d.revenue.toLocaleString()}</td>
+                            <td className="px-5 py-2.5 text-right text-gray-500">${d.cost.toLocaleString()}</td>
+                            <td className={`px-5 py-2.5 text-right font-semibold ${d.profit >= 0 ? 'text-gain' : 'text-loss'}`}>${d.profit.toLocaleString()}</td>
+                            <td className="px-5 py-2.5 text-right text-xero-dark">{margin}%</td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
+                    <tfoot>
+                      <tr className="border-t-2 border-dark-600/40 bg-dark-700/30">
+                        <td className="px-5 py-2.5 font-semibold text-xero-dark">Total</td>
+                        <td className="px-5 py-2.5 text-right font-semibold text-xero-dark">${s.total_revenue.toLocaleString()}</td>
+                        <td className="px-5 py-2.5 text-right font-semibold text-gray-500">${s.total_cogs.toLocaleString()}</td>
+                        <td className={`px-5 py-2.5 text-right font-bold ${s.gross_profit >= 0 ? 'text-gain' : 'text-loss'}`}>${s.gross_profit.toLocaleString()}</td>
+                        <td className="px-5 py-2.5 text-right font-semibold text-xero-dark">{s.gross_margin_pct}%</td>
+                      </tr>
+                    </tfoot>
                   </table>
                 </div>
               </div>
@@ -363,29 +468,24 @@ function App() {
           </div>
         )}
 
-        {/* AI Insights Tab */}
+        {/* AI Insights Tab — Xero-style */}
         {activeTab === 'ai' && results && (
-          <div className="bg-white border border-dark-600/50 rounded-2xl p-6 md:p-8 shadow-sm">
-            <div className="flex items-center gap-3 mb-6">
-              <span className="text-2xl">🤖</span>
-              <div>
-                <h2 className="text-xl font-semibold text-xero-dark">AI Financial Recommendations</h2>
-                <p className="text-xs text-gray-400">
-                  {results.ai_enabled ? 'Powered by Llama 3.3 70B via Groq' : 'AI not configured — set GROQ_API_KEY'}
-                </p>
+          <div className="space-y-5">
+            {/* AI Header */}
+            <div className="bg-white border border-dark-600/30 rounded-lg overflow-hidden shadow-sm">
+              <div className="h-1 bg-xero-blue"></div>
+              <div className="px-5 py-3 flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-base font-semibold text-xero-dark">AI Recommendations</h2>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    {results.ai_enabled ? 'Llama 3.3 70B via Groq' : 'AI not configured'}
+                    {' · '}{results.rows_processed} rows analyzed
+                    {results.pos_format_detected && <> · {POS_LABELS[results.pos_format_detected] || results.pos_format_detected}</>}
+                  </p>
+                </div>
               </div>
             </div>
-            <div className="prose max-w-none whitespace-pre-wrap text-sm leading-relaxed text-gray-600">
-              {results.ai_recommendations}
-            </div>
-            <div className="mt-6 flex flex-wrap items-center gap-3 text-xs text-gray-400">
-              <span>Analyzed {results.rows_processed} rows · {results.analyzed_at}</span>
-              {results.pos_format_detected && (
-                <span className="bg-dark-700 text-gray-500 px-2 py-0.5 rounded-md">
-                  Format: {POS_LABELS[results.pos_format_detected] || results.pos_format_detected}
-                </span>
-              )}
-            </div>
+            <AIInsightCards text={results.ai_recommendations} />
           </div>
         )}
       </main>
@@ -405,28 +505,85 @@ function App() {
   );
 }
 
-// ─── Sub-components ──────────────────────────────────────────────────────
+// ─── Sub-components (Xero-style) ─────────────────────────────────────────
 
-function KPI({ label, value, sub, color }) {
-  const colors = { gain: 'text-gain', loss: 'text-loss', accent: 'text-xero-blue' };
+const SECTION_ACCENTS = [
+  'bg-xero-blue',
+  'bg-gain',
+  'bg-xero-teal',
+  'bg-amber-400',
+  'bg-violet-500',
+  'bg-rose-400',
+];
+
+function AIInsightCards({ text }) {
+  if (!text) return null;
+
+  // Split by emoji headers (🔥, 💰, 📋, ✂️, 📈, 💡)
+  const sectionRegex = /([\u{1F525}\u{1F4B0}\u{1F4CB}\u{2702}\u{FE0F}?\u{1F4C8}\u{1F4A1}])\s*(.+)/gu;
+  const matches = [...text.matchAll(sectionRegex)];
+
+  if (matches.length === 0) {
+    return (
+      <div className="bg-white border border-dark-600/30 rounded-lg overflow-hidden shadow-sm">
+        <div className="h-1 bg-xero-blue"></div>
+        <div className="p-5">
+          <p className="text-sm leading-relaxed text-gray-600 whitespace-pre-wrap">{text}</p>
+        </div>
+      </div>
+    );
+  }
+
+  const sections = matches.map((m, i) => ({
+    emoji: m[1],
+    title: m[2].trim(),
+    body: text.slice(m.index + m[0].length, i + 1 < matches.length ? matches[i + 1].index : text.length).trim(),
+  }));
+
   return (
-    <div className="bg-white border border-dark-600/50 rounded-2xl p-5 shadow-sm">
-      <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">{label}</p>
-      <p className={`text-2xl font-bold ${colors[color] || 'text-xero-dark'}`}>{value}</p>
-      {sub && <p className="text-xs text-gray-400 mt-1">{sub}</p>}
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      {sections.map((sec, i) => (
+        <div key={i} className="bg-white border border-dark-600/30 rounded-lg overflow-hidden shadow-sm">
+          <div className={`h-1 ${SECTION_ACCENTS[i % SECTION_ACCENTS.length]}`}></div>
+          <div className="p-5">
+            <h3 className="text-sm font-semibold text-xero-dark uppercase tracking-wide mb-3">{sec.title}</h3>
+            <div className="text-[13px] leading-relaxed text-gray-600 space-y-2.5">
+              {sec.body.split('\n\n').filter(Boolean).map((para, j) => (
+                <p key={j}>{para.replace(/\n/g, ' ').trim()}</p>
+              ))}
+            </div>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
 
-function PLRow({ label, value, bold, negative, color }) {
+function XeroKPI({ label, value, sub, color }) {
+  const colors = { gain: 'text-gain', loss: 'text-loss', accent: 'text-xero-blue' };
+  return (
+    <div className="bg-white border border-dark-600/30 rounded-lg overflow-hidden shadow-sm">
+      <div className="h-0.5 bg-dark-600/20"></div>
+      <div className="px-4 py-3">
+        <p className="text-[11px] text-gray-400 uppercase tracking-wider mb-0.5">{label}</p>
+        <p className={`text-xl font-bold ${colors[color] || 'text-xero-dark'}`}>{value}</p>
+        {sub && <p className="text-[11px] text-gray-400 mt-0.5">{sub}</p>}
+      </div>
+    </div>
+  );
+}
+
+function XeroPLRow({ label, value, bold, indent, deduct, border, color }) {
   const colors = { gain: 'text-gain', loss: 'text-loss' };
   return (
-    <div className="flex justify-between items-center">
-      <span className={bold ? 'font-semibold text-xero-dark' : 'text-gray-500'}>{label}</span>
-      <span className={`${bold ? 'font-bold text-lg' : ''} ${colors[color] || (negative ? 'text-gray-500' : 'text-xero-dark')}`}>
-        {negative ? `(${Math.abs(value).toLocaleString()})` : `$${value.toLocaleString()}`}
-      </span>
-    </div>
+    <tr className={border ? 'border-t border-dark-600/40' : ''}>
+      <td className={`py-2 ${indent ? 'pl-4 text-gray-500' : ''} ${bold ? 'font-semibold text-xero-dark' : 'text-gray-600'}`}>
+        {label}
+      </td>
+      <td className={`py-2 text-right tabular-nums ${bold ? 'font-bold' : ''} ${colors[color] || (deduct ? 'text-gray-500' : 'text-xero-dark')}`}>
+        {deduct ? `(${value.toLocaleString()})` : `$${value.toLocaleString()}`}
+      </td>
+    </tr>
   );
 }
 
