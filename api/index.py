@@ -293,6 +293,118 @@ def _normalize_date(date_str):
     return date_str.strip()[:10]
 
 
+# ─── Expense File Parsing ────────────────────────────────────────────────────
+
+# Column name candidates for expense files
+_EXPENSE_ITEM_COLS = ['item', 'name', 'item_name', 'product', 'product_name', 'description',
+                      'expense', 'expense_name', 'ingredient', 'ingredient_name', 'material',
+                      'category', 'type', 'account', 'line_item', 'menu_item']
+_EXPENSE_COST_COLS = ['cost', 'amount', 'total', 'price', 'unit_cost', 'cost_price',
+                      'expense_amount', 'value', 'total_cost', 'cost_amount', 'debit',
+                      'amount_aud', 'amount_nzd', 'amount_usd', 'amount_gbp', 'amount_eur',
+                      'amount_cad', 'subtotal', 'net_amount', 'gross_amount']
+_EXPENSE_QTY_COLS = ['quantity', 'qty', 'units', 'count']
+_EXPENSE_CAT_COLS = ['category', 'type', 'group', 'department', 'account', 'class',
+                     'expense_category', 'expense_type', 'cost_centre', 'cost_center']
+
+
+def parse_expense_data(expense_csv_text):
+    """
+    Parse an expense/cost file and return:
+    - item_costs: dict mapping item name (lower) -> unit cost
+    - category_costs: dict mapping category (lower) -> total cost
+    - general_expenses: total of unmatched/overhead expenses
+    - expense_rows: list of parsed {name, category, cost, quantity} dicts
+    """
+    rows, _, headers = parse_csv_text(expense_csv_text)
+    if not rows:
+        return {}, {}, 0, []
+
+    expense_rows = []
+    for row in rows:
+        name = _flex_str(row, _EXPENSE_ITEM_COLS)
+        cost = _flex_num(row, _EXPENSE_COST_COLS)
+        qty = _flex_num(row, _EXPENSE_QTY_COLS) or 1
+        cat = _flex_str(row, _EXPENSE_CAT_COLS)
+
+        if cost <= 0:
+            continue
+
+        expense_rows.append({
+            'name': name,
+            'category': cat,
+            'cost': abs(cost),
+            'quantity': qty,
+        })
+
+    # Build item-level cost lookup (unit cost = total / qty)
+    item_costs = {}
+    category_costs = {}
+    general_expenses = 0
+
+    for er in expense_rows:
+        name_key = er['name'].lower().strip()
+        cat_key = er['category'].lower().strip()
+
+        if name_key:
+            # Per-item cost: store as unit cost
+            if name_key not in item_costs:
+                item_costs[name_key] = {'total_cost': 0, 'total_qty': 0}
+            item_costs[name_key]['total_cost'] += er['cost']
+            item_costs[name_key]['total_qty'] += er['quantity']
+        elif cat_key:
+            # Category-level expense
+            category_costs[cat_key] = category_costs.get(cat_key, 0) + er['cost']
+        else:
+            # General overhead
+            general_expenses += er['cost']
+
+    # Convert to unit costs
+    unit_costs = {}
+    for name_key, data in item_costs.items():
+        if data['total_qty'] > 0:
+            unit_costs[name_key] = data['total_cost'] / data['total_qty']
+        else:
+            unit_costs[name_key] = data['total_cost']
+
+    return unit_costs, category_costs, general_expenses, expense_rows
+
+
+def apply_expense_data(normalized_rows, unit_costs, category_costs):
+    """
+    Merge expense file costs into normalized sales rows.
+    Only applies to rows that have zero cost (i.e. POS didn't provide it).
+    Returns (updated_rows, matched_count).
+    """
+    matched = 0
+    for r in normalized_rows:
+        if r['cost'] > 0:
+            continue  # Already has cost from sales data — don't override
+
+        item_key = r['item'].lower().strip()
+        cat_key = r['category'].lower().strip()
+        qty = r['quantity'] or 1
+
+        # Try exact item name match
+        if item_key in unit_costs:
+            r['cost'] = _r(unit_costs[item_key] * qty)
+            matched += 1
+            continue
+
+        # Try partial match (expense item name is contained in sales item name or vice versa)
+        for exp_key, uc in unit_costs.items():
+            if exp_key in item_key or item_key in exp_key:
+                r['cost'] = _r(uc * qty)
+                matched += 1
+                break
+        else:
+            # Try category-level cost: distribute proportionally by revenue within category
+            # (handled after all rows are processed below)
+            pass
+
+    return normalized_rows, matched
+
+
 # ─── Financial Engine ────────────────────────────────────────────────────────
 
 def compute_metrics(normalized_rows, fixed_costs=0):
@@ -667,6 +779,7 @@ class handler(BaseHTTPRequestHandler):
                 rows = body.get('rows', [])
                 fixed_costs = float(body.get('fixed_costs', 0))
                 force_format = body.get('pos_format', '')  # optional override
+                expense_csv_text = body.get('expense_csv', '')
 
                 # Parse CSV if provided as text
                 pos_format = 'generic'
@@ -695,6 +808,29 @@ class handler(BaseHTTPRequestHandler):
                     })
                     return
 
+                # Parse and apply expense file if provided
+                expense_matched = 0
+                expense_general = 0
+                if expense_csv_text:
+                    unit_costs, category_costs, general_expenses, expense_rows = parse_expense_data(expense_csv_text)
+                    normalized, expense_matched = apply_expense_data(normalized, unit_costs, category_costs)
+                    # Add general/unmatched expenses to fixed costs
+                    expense_general = general_expenses
+                    # Add category-level costs that couldn't be matched per-item as general expenses
+                    for cat_key, cat_cost in category_costs.items():
+                        # Check if any rows matched this category
+                        cat_items = [r for r in normalized if r['category'].lower().strip() == cat_key]
+                        if cat_items:
+                            # Distribute category cost proportionally by revenue
+                            total_cat_rev = sum(r['revenue'] for r in cat_items) or 1
+                            for r in cat_items:
+                                if r['cost'] <= 0:
+                                    r['cost'] = _r(cat_cost * (r['revenue'] / total_cat_rev))
+                                    expense_matched += 1
+                        else:
+                            expense_general += cat_cost
+                    fixed_costs += expense_general
+
                 # Compute metrics
                 metrics = compute_metrics(normalized, fixed_costs)
 
@@ -710,6 +846,9 @@ class handler(BaseHTTPRequestHandler):
                     'rows_processed': len(normalized),
                     'pos_format_detected': pos_format,
                     'csv_headers': csv_headers,
+                    'expense_file_used': bool(expense_csv_text),
+                    'expense_items_matched': expense_matched,
+                    'expense_general_added': _r(expense_general) if expense_csv_text else 0,
                 }
 
                 self._json(200, result)

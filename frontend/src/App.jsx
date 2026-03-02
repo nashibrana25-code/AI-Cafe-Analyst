@@ -13,7 +13,10 @@ function App() {
   const [backendStatus, setBackendStatus] = useState('checking');
   const [aiStatus, setAiStatus] = useState('checking');
   const [csvText, setCsvText] = useState('');
+  const [expenseCsvText, setExpenseCsvText] = useState('');
+  const [expenseFileName, setExpenseFileName] = useState('');
   const fileRef = useRef();
+  const expenseFileRef = useRef();
 
   // ─── Health Check on Mount ───────────────────────────────────────────────
   useEffect(() => {
@@ -77,18 +80,61 @@ function App() {
     }
   };
 
+  // ─── Expense File Upload (CSV, Excel, JSON) ───────────────────────────
+  const handleExpenseFile = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setExpenseFileName(file.name);
+    setError('');
+
+    const ext = file.name.split('.').pop().toLowerCase();
+
+    try {
+      if (ext === 'xlsx' || ext === 'xls') {
+        const buf = await file.arrayBuffer();
+        const wb = XLSX.read(buf, { type: 'array' });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const csv = XLSX.utils.sheet_to_csv(ws);
+        setExpenseCsvText(csv);
+      } else if (ext === 'json') {
+        const raw = await file.text();
+        const data = JSON.parse(raw);
+        const rows = Array.isArray(data) ? data : (data.data || data.rows || data.items || [data]);
+        if (!rows.length) throw new Error('JSON file has no data rows');
+        const headers = Object.keys(rows[0]);
+        const csvLines = [headers.join(',')];
+        for (const row of rows) {
+          csvLines.push(headers.map(h => {
+            const v = String(row[h] ?? '');
+            return v.includes(',') || v.includes('"') ? `"${v.replace(/"/g, '""')}"` : v;
+          }).join(','));
+        }
+        setExpenseCsvText(csvLines.join('\n'));
+      } else {
+        const text = await file.text();
+        setExpenseCsvText(text);
+      }
+    } catch (err) {
+      setError(`Could not read expense file: ${err.message}`);
+      setExpenseCsvText('');
+      setExpenseFileName('');
+    }
+  };
+
   const analyze = async (csvText) => {
     setLoading(true);
     setError('');
     setResults(null);
     try {
+      const payload = {
+        csv: csvText,
+        fixed_costs: parseFloat(fixedCosts) || 0,
+      };
+      if (expenseCsvText) payload.expense_csv = expenseCsvText;
       const res = await fetch(`${API_URL}/api/analyze`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          csv: csvText,
-          fixed_costs: parseFloat(fixedCosts) || 0,
-        }),
+        body: JSON.stringify(payload),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Analysis failed');
@@ -214,19 +260,7 @@ function App() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
               <div>
-                <label className="block text-sm text-gray-500 mb-2">Monthly Fixed Costs (rent, salaries, utilities)</label>
-                <div className="relative">
-                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-semibold">$</span>
-                  <input
-                    type="number" min="0" value={fixedCosts}
-                    onChange={(e) => setFixedCosts(e.target.value)}
-                    placeholder="e.g. 3500"
-                    className="w-full bg-dark-700 border border-dark-600 rounded-xl pl-8 pr-4 py-3 text-xero-dark focus:outline-none focus:border-xero-blue/50 focus:ring-1 focus:ring-xero-blue/20 transition-all"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm text-gray-500 mb-2">Sales Data File</label>
+                <label className="block text-sm text-gray-500 mb-2">Sales Data File <span className="text-red-400">*</span></label>
                 <input
                   ref={fileRef}
                   type="file"
@@ -248,6 +282,46 @@ function App() {
                     Use sample
                   </button>
                 </div>
+              </div>
+              <div>
+                <label className="block text-sm text-gray-500 mb-2">Expense / Cost File <span className="text-gray-400">(optional)</span></label>
+                <input
+                  ref={expenseFileRef}
+                  type="file"
+                  accept=".csv,.tsv,.txt,.xlsx,.xls,.json"
+                  onChange={handleExpenseFile}
+                  className="hidden"
+                />
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => expenseFileRef.current?.click()}
+                    className="flex-1 bg-dark-700 border border-dashed border-dark-600 rounded-xl py-3 px-4 text-gray-500 hover:border-xero-blue/50 hover:text-xero-dark transition-all text-left"
+                  >
+                    {expenseFileName || 'Choose expense file (optional)...'}
+                  </button>
+                  {expenseFileName && (
+                    <button
+                      onClick={() => { setExpenseCsvText(''); setExpenseFileName(''); if (expenseFileRef.current) expenseFileRef.current.value = ''; }}
+                      className="text-xs text-loss hover:text-red-700 font-medium px-3 py-3 rounded-xl border border-dark-600/50 hover:border-red-300 transition-all whitespace-nowrap"
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
+                <p className="text-[11px] text-gray-400 mt-1.5">Item costs, ingredient costs, or general expenses — we'll match them to your sales data.</p>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm text-gray-500 mb-2">Monthly Fixed Costs <span className="text-gray-400">(optional manual entry)</span></label>
+              <div className="relative w-full md:w-1/2">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-semibold">$</span>
+                <input
+                  type="number" min="0" value={fixedCosts}
+                  onChange={(e) => setFixedCosts(e.target.value)}
+                  placeholder="e.g. 3500 (rent, salaries, utilities)"
+                  className="w-full bg-dark-700 border border-dark-600 rounded-xl pl-8 pr-4 py-3 text-xero-dark focus:outline-none focus:border-xero-blue/50 focus:ring-1 focus:ring-xero-blue/20 transition-all"
+                />
               </div>
             </div>
 
@@ -310,6 +384,11 @@ function App() {
                 {!results.metrics.summary.total_cogs && (
                   <span className="text-[11px] bg-amber-50 text-amber-700 px-2.5 py-1 rounded border border-amber-200 font-medium">
                     Add cost data for margin analysis
+                  </span>
+                )}
+                {results.expense_file_used && (
+                  <span className="text-[11px] bg-green-50 text-green-700 px-2.5 py-1 rounded border border-green-200 font-medium">
+                    Expense file applied ({results.expense_items_matched} items matched{results.expense_general_added > 0 ? `, $${results.expense_general_added.toLocaleString()} added to overheads` : ''})
                   </span>
                 )}
               </div>
