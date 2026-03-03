@@ -405,14 +405,230 @@ def apply_expense_data(normalized_rows, unit_costs, category_costs):
     return normalized_rows, matched
 
 
+# ─── Stocktake Parsing ───────────────────────────────────────────────────────
+
+_STOCKTAKE_OPEN_COLS  = ['opening_stock', 'opening', 'opening_qty', 'opening_count',
+                          'open_stock', 'open', 'begin_qty', 'begin_stock']
+_STOCKTAKE_CLOSE_COLS = ['closing_stock', 'closing', 'closing_qty', 'closing_count',
+                          'close_stock', 'close', 'end_stock', 'end_qty']
+_STOCKTAKE_PURCH_COLS = ['purchases', 'received', 'purchase_qty', 'purchased',
+                          'stock_in', 'deliveries', 'received_qty', 'additions']
+_STOCKTAKE_COST_COLS  = ['cost', 'unit_cost', 'price', 'cost_price', 'unit_price',
+                          'avg_cost', 'average_cost', 'last_cost']
+_STOCKTAKE_OPEN_VAL_COLS  = ['opening_value', 'opening_stock_value', 'open_value',
+                               'opening_amount', 'begin_value']
+_STOCKTAKE_CLOSE_VAL_COLS = ['closing_value', 'closing_stock_value', 'close_value',
+                               'closing_amount', 'end_value']
+_STOCKTAKE_PURCH_VAL_COLS = ['purchases_value', 'purchase_value', 'received_value',
+                               'inventory_added', 'additions_value']
+
+
+def parse_stocktake(csv_text):
+    """
+    Parse a stocktake sheet and compute True COGS.
+    True COGS = Opening Stock Value + Purchases Value - Closing Stock Value
+    Returns: {true_cogs, opening_stock_value, closing_stock_value, purchases_value}
+    or None if not parseable.
+    """
+    rows, _, _ = parse_csv_text(csv_text)
+    if not rows:
+        return None
+
+    opening_total = 0
+    purchases_total = 0
+    closing_total = 0
+
+    for row in rows:
+        unit_cost = _flex_num(row, _STOCKTAKE_COST_COLS)
+
+        # Try direct value columns first
+        open_val  = _flex_num(row, _STOCKTAKE_OPEN_VAL_COLS)
+        close_val = _flex_num(row, _STOCKTAKE_CLOSE_VAL_COLS)
+        purch_val = _flex_num(row, _STOCKTAKE_PURCH_VAL_COLS)
+
+        # Fall back to qty × unit_cost
+        if open_val == 0:
+            open_qty  = _flex_num(row, _STOCKTAKE_OPEN_COLS)
+            open_val  = open_qty * unit_cost if unit_cost else open_qty
+        if close_val == 0:
+            close_qty  = _flex_num(row, _STOCKTAKE_CLOSE_COLS)
+            close_val  = close_qty * unit_cost if unit_cost else close_qty
+        if purch_val == 0:
+            purch_qty  = _flex_num(row, _STOCKTAKE_PURCH_COLS)
+            purch_val  = purch_qty * unit_cost if unit_cost else purch_qty
+
+        opening_total   += open_val
+        purchases_total += purch_val
+        closing_total   += close_val
+
+    true_cogs = opening_total + purchases_total - closing_total
+    if true_cogs < 0:
+        true_cogs = 0
+
+    return {
+        'true_cogs':            _r(true_cogs),
+        'opening_stock_value':  _r(opening_total),
+        'purchases_value':      _r(purchases_total),
+        'closing_stock_value':  _r(closing_total),
+    }
+
+
+# ─── Payroll Parsing ─────────────────────────────────────────────────────────
+
+_PAYROLL_PAY_COLS   = ['gross_pay', 'wages', 'salary', 'amount', 'total_pay', 'gross',
+                        'gross_wages', 'net_pay', 'total', 'earnings', 'gross_earnings',
+                        'pay_amount', 'wage_amount']
+_PAYROLL_HOURS_COLS = ['hours', 'hours_worked', 'total_hours', 'regular_hours',
+                        'paid_hours', 'ordinary_hours']
+_PAYROLL_DATE_COLS  = ['date', 'pay_date', 'pay_period', 'period', 'week_ending',
+                        'period_end', 'payment_date']
+
+
+def parse_payroll(csv_text):
+    """
+    Parse a payroll summary and return total labour cost.
+    Returns: {total_labour, pay_runs, total_hours}
+    or None if not parseable.
+    """
+    rows, _, _ = parse_csv_text(csv_text)
+    if not rows:
+        return None
+
+    total_labour = 0
+    total_hours  = 0
+    pay_run_dates = set()
+
+    for row in rows:
+        pay   = _flex_num(row, _PAYROLL_PAY_COLS)
+        hours = _flex_num(row, _PAYROLL_HOURS_COLS)
+
+        if pay <= 0:
+            continue
+
+        total_labour += pay
+        total_hours  += hours
+
+        date_val = _flex_str(row, _PAYROLL_DATE_COLS)
+        if date_val:
+            pay_run_dates.add(date_val)
+
+    if total_labour == 0:
+        return None
+
+    return {
+        'total_labour': _r(total_labour),
+        'pay_runs':     len(pay_run_dates) if pay_run_dates else 1,
+        'total_hours':  _r(total_hours),
+    }
+
+
+# ─── Bank Transaction Parsing ─────────────────────────────────────────────────
+
+# POS settlement keywords — these are revenue credits, not expenses
+_POS_SETTLEMENT_KW = [
+    'square', 'lightspeed', 'toast', 'clover', 'shopify',
+    'eftpos settlement', 'card settlement', 'pos settlement',
+    'stripe', 'tyro', 'worldpay', 'eftpos pmt',
+]
+
+# Auto-categorization keyword map (order matters — first match wins)
+_BANK_CATEGORIES = {
+    'Rent & Lease':          ['rent', 'lease', 'property'],
+    'Utilities':             ['electricity', 'power', 'energy', 'gas ', ' gas', 'water',
+                              'internet', 'broadband', 'phone', 'telstra', 'optus',
+                              'vodafone', 'utilities'],
+    'Insurance':             ['insurance', 'insur'],
+    'Coffee & Ingredients':  ['coffee', 'beans', 'milk', 'bakery', 'ingredients',
+                              'food supplier', 'wholesale', 'produce', 'grocer'],
+    'Supplies & Packaging':  ['packaging', 'supplies', 'disposable', 'cups', 'bags',
+                              'napkins', 'stationery'],
+    'Cleaning':              ['cleaning', 'laundry', 'hygiene', 'sanitiser', 'detergent'],
+    'Marketing':             ['marketing', 'advertising', 'facebook', 'instagram',
+                              'google ads', 'promotion', 'advert'],
+    'Accounting & Software': ['xero', 'myob', 'accounting', 'bookkeeping',
+                              'software', 'subscription'],
+    'Bank Fees':             ['bank fee', 'account keeping', 'service fee',
+                              'transaction fee', 'merchant fee'],
+}
+
+_BANK_DESC_COLS  = ['description', 'narrative', 'details', 'memo',
+                     'particulars', 'transaction', 'reference', 'text']
+_BANK_DEBIT_COLS = ['debit', 'debit_amount', 'withdrawal', 'dr', 'outflow']
+_BANK_CREDIT_COLS= ['credit', 'credit_amount', 'deposit', 'cr', 'inflow']
+_BANK_AMT_COLS   = ['amount', 'value', 'net_amount']
+
+
+def parse_bank_transactions(csv_text):
+    """
+    Parse bank transactions and return categorized expenses.
+    Skips POS settlement credits (revenue reconciliation, not expenses).
+    Returns: {total_expenses, categories, skipped_settlements}
+    or None if not parseable.
+    """
+    rows, _, _ = parse_csv_text(csv_text)
+    if not rows:
+        return None
+
+    total_expenses = 0
+    categories    = {cat: 0 for cat in _BANK_CATEGORIES}
+    categories['Other'] = 0
+    skipped = 0
+
+    for row in rows:
+        desc  = _flex_str(row, _BANK_DESC_COLS).lower()
+        debit = abs(_flex_num(row, _BANK_DEBIT_COLS))
+
+        # Handle signed single-amount column (negative = expense for some banks)
+        if debit == 0:
+            for k in row:
+                if k.strip().lower().replace(' ', '_') in _BANK_AMT_COLS:
+                    raw = _parse_num(row[k])
+                    if raw is not None and raw < 0:
+                        debit = abs(raw)
+                    break
+
+        if debit <= 0:
+            continue  # credit or zero row — not an expense
+
+        # Skip POS settlement lines
+        if any(kw in desc for kw in _POS_SETTLEMENT_KW):
+            skipped += 1
+            continue
+
+        total_expenses += debit
+
+        matched_cat = 'Other'
+        for cat, keywords in _BANK_CATEGORIES.items():
+            if any(kw in desc for kw in keywords):
+                matched_cat = cat
+                break
+        categories[matched_cat] += debit
+
+    # Strip empty categories
+    categories = {k: _r(v) for k, v in categories.items() if v > 0}
+
+    if total_expenses == 0:
+        return None
+
+    return {
+        'total_expenses':      _r(total_expenses),
+        'categories':          categories,
+        'skipped_settlements': skipped,
+    }
+
+
 # ─── Financial Engine ────────────────────────────────────────────────────────
 
-def compute_metrics(normalized_rows, fixed_costs=0, time_period_months=1):
+def compute_metrics(normalized_rows, fixed_costs=0, time_period_months=1,
+                    stocktake=None, payroll=None, bank=None):
     """
     Compute cafe financial metrics from normalized rows.
     Each row: { item, category, quantity, revenue (total), cost (total), date }
     time_period_months: how many months the data covers (for projections).
     fixed_costs: monthly fixed costs — will be multiplied by time_period_months.
+    stocktake: result of parse_stocktake() or None
+    payroll: result of parse_payroll() or None
+    bank: result of parse_bank_transactions() or None
     """
     tp = max(time_period_months, 1)
     monthly_fixed = fixed_costs
@@ -474,6 +690,24 @@ def compute_metrics(normalized_rows, fixed_costs=0, time_period_months=1):
     avg_contribution = (gross_profit / total_units) if total_units else 0
     break_even_units = int(total_fixed / avg_contribution) if avg_contribution > 0 else 0
 
+    # ── True COGS from stocktake ───────────────────────────────────────────
+    if stocktake:
+        true_cogs   = stocktake['true_cogs']
+        cogs_source = 'stocktake'
+    else:
+        true_cogs   = total_cogs
+        cogs_source = 'pos'
+
+    # ── Labour metrics from payroll ────────────────────────────────────────
+    labour_cost     = payroll['total_labour'] if payroll else 0
+    labour_pct      = (labour_cost / total_revenue * 100) if (labour_cost and total_revenue) else 0
+    prime_cost      = true_cogs + labour_cost
+    prime_cost_pct  = (prime_cost / total_revenue * 100) if (prime_cost and total_revenue) else 0
+
+    # ── Bank expense totals ────────────────────────────────────────────────
+    bank_expenses   = bank['total_expenses'] if bank else 0
+    expense_categories = bank['categories'] if bank else {}
+
     # Top items by profit
     top_items = sorted(items.items(), key=lambda x: x[1]['profit'], reverse=True)[:10]
     worst_items = sorted(items.items(), key=lambda x: x[1]['profit'])[:5]
@@ -519,6 +753,14 @@ def compute_metrics(normalized_rows, fixed_costs=0, time_period_months=1):
             'annual_cogs': _r(annual_cogs),
             'annual_gross_profit': _r(annual_gross_profit),
             'annual_net_profit': _r(annual_net_profit),
+            # ── Enhanced metrics ───────────────────────────────────────────
+            'true_cogs': _r(true_cogs),
+            'cogs_source': cogs_source,
+            'labour_cost': _r(labour_cost),
+            'labour_pct': _r(labour_pct),
+            'prime_cost': _r(prime_cost),
+            'prime_cost_pct': _r(prime_cost_pct),
+            'bank_expenses': _r(bank_expenses),
         },
         'top_items': [
             {'name': name, **{k: _r(v) if isinstance(v, float) else v for k, v in data.items()}}
@@ -536,6 +778,7 @@ def compute_metrics(normalized_rows, fixed_costs=0, time_period_months=1):
             date: {k: _r(v) if isinstance(v, float) else v for k, v in data.items()}
             for date, data in sorted(daily.items())
         },
+        'expense_categories': expense_categories,
     }
 
 
@@ -608,13 +851,20 @@ def build_prompt(metrics):
         for cat, d in metrics.get('categories', {}).items()
     )
 
+    exp_cats = metrics.get('expense_categories', {})
+    expense_str = ''
+    if exp_cats:
+        expense_str = '\nBANK EXPENSE BREAKDOWN:\n' + '\n'.join(
+            f"  - {cat}: ${amt}" for cat, amt in exp_cats.items()
+        )
+
     return f"""Analyze this cafe's financial data and provide 6-8 specific, prioritized recommendations.
 
 DATA PERIOD: {s.get('time_period_months', 1)} month(s) of data
 
 FINANCIAL SUMMARY (for the full period):
 - Total Revenue: ${s['total_revenue']}
-- Total COGS: ${s['total_cogs']}
+- Total COGS: ${s['total_cogs']}{' (from stocktake)' if s.get('cogs_source') == 'stocktake' else ' (from POS)'}
 - Gross Profit: ${s['gross_profit']} (Margin: {s['gross_margin_pct']}%)
 - Fixed Costs: ${s['fixed_costs']} (${s.get('monthly_fixed_costs', s['fixed_costs'])}/month × {s.get('time_period_months', 1)} months)
 - Net Profit: ${s['net_profit']} (Margin: {s['net_margin_pct']}%)
@@ -623,6 +873,8 @@ FINANCIAL SUMMARY (for the full period):
 - Break-even: {s['break_even_units']} units
 - Avg Daily Revenue: ${s['avg_daily_revenue']}
 - Avg Daily Transactions: {s['avg_daily_transactions']}
+{f"- Labour Cost: ${s['labour_cost']} ({s['labour_pct']}% of revenue) — Industry benchmark: 30–35%" if s.get('labour_cost') else ''}
+{f"- Prime Cost (COGS + Labour): ${s['prime_cost']} ({s['prime_cost_pct']}% of revenue) — Industry benchmark: <60%" if s.get('prime_cost') else ''}
 
 MONTHLY AVERAGES:
 - Monthly Revenue: ${s.get('monthly_revenue', s['total_revenue'])}
@@ -641,8 +893,8 @@ LOWEST PERFORMING ITEMS:
 
 CATEGORY BREAKDOWN:
 {cat_str}
-
-Industry benchmarks: food cost 28-32%, gross margin 65-70%, net margin 5-15%.
+{expense_str}
+Industry benchmarks: food cost 28-32%, gross margin 65-70%, net margin 5-15%, labour 30-35%, prime cost <60%.
 
 Give me friendly, practical advice using the emoji section headers (🔥 Quick Wins, 💰 Pricing Tips, 📋 Menu Moves, ✂️ Cut Costs, 📈 Grow Revenue, 💡 Pro Tip). Write short paragraphs, not bullet lists. Be specific with dollar amounts and percentages from the data. Keep it encouraging and actionable."""
 
@@ -815,8 +1067,11 @@ class handler(BaseHTTPRequestHandler):
                 rows = body.get('rows', [])
                 fixed_costs = float(body.get('fixed_costs', 0))
                 force_format = body.get('pos_format', '')  # optional override
-                expense_csv_text = body.get('expense_csv', '')
+                expense_csv_text = body.get('expense_csv', '')  # legacy support
                 time_period_months = float(body.get('time_period_months', 1))
+                stocktake_csv_text = body.get('stocktake_csv', '')
+                payroll_csv_text   = body.get('payroll_csv', '')
+                bank_csv_text      = body.get('bank_csv', '')
 
                 # Parse CSV if provided as text
                 pos_format = 'generic'
@@ -845,20 +1100,16 @@ class handler(BaseHTTPRequestHandler):
                     })
                     return
 
-                # Parse and apply expense file if provided
+                # ── Legacy expense file (still supported) ──────────────────────
                 expense_matched = 0
                 expense_general = 0
                 if expense_csv_text:
                     unit_costs, category_costs, general_expenses, expense_rows = parse_expense_data(expense_csv_text)
                     normalized, expense_matched = apply_expense_data(normalized, unit_costs, category_costs)
-                    # Add general/unmatched expenses to fixed costs
                     expense_general = general_expenses
-                    # Add category-level costs that couldn't be matched per-item as general expenses
                     for cat_key, cat_cost in category_costs.items():
-                        # Check if any rows matched this category
                         cat_items = [r for r in normalized if r['category'].lower().strip() == cat_key]
                         if cat_items:
-                            # Distribute category cost proportionally by revenue
                             total_cat_rev = sum(r['revenue'] for r in cat_items) or 1
                             for r in cat_items:
                                 if r['cost'] <= 0:
@@ -866,12 +1117,20 @@ class handler(BaseHTTPRequestHandler):
                                     expense_matched += 1
                         else:
                             expense_general += cat_cost
-                    # Expense general costs are total for the period, not monthly.
-                    # Convert to monthly equivalent so compute_metrics scales correctly.
                     fixed_costs += expense_general / time_period_months
 
+                # ── Parse enhanced data sources ────────────────────────────────
+                stocktake = parse_stocktake(stocktake_csv_text) if stocktake_csv_text else None
+                payroll   = parse_payroll(payroll_csv_text) if payroll_csv_text else None
+                bank      = parse_bank_transactions(bank_csv_text) if bank_csv_text else None
+
+                # If bank transactions provided, fold total into fixed costs (monthly)
+                if bank:
+                    fixed_costs += bank['total_expenses'] / time_period_months
+
                 # Compute metrics
-                metrics = compute_metrics(normalized, fixed_costs, time_period_months)
+                metrics = compute_metrics(normalized, fixed_costs, time_period_months,
+                                          stocktake=stocktake, payroll=payroll, bank=bank)
 
                 # Get AI recommendations
                 prompt = build_prompt(metrics)
@@ -889,6 +1148,11 @@ class handler(BaseHTTPRequestHandler):
                     'expense_file_used': bool(expense_csv_text),
                     'expense_items_matched': expense_matched,
                     'expense_general_added': _r(expense_general) if expense_csv_text else 0,
+                    'stocktake_used': bool(stocktake),
+                    'payroll_used': bool(payroll),
+                    'bank_used': bool(bank),
+                    'stocktake_data': stocktake,
+                    'payroll_data': payroll,
                 }
 
                 self._json(200, result)

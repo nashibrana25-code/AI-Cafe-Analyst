@@ -14,10 +14,16 @@ function App() {
   const [backendStatus, setBackendStatus] = useState('checking');
   const [aiStatus, setAiStatus] = useState('checking');
   const [csvText, setCsvText] = useState('');
-  const [expenseCsvText, setExpenseCsvText] = useState('');
-  const [expenseFileName, setExpenseFileName] = useState('');
+  const [stocktakeCsv, setStocktakeCsv] = useState('');
+  const [stocktakeFileName, setStocktakeFileName] = useState('');
+  const [payrollCsv, setPayrollCsv] = useState('');
+  const [payrollFileName, setPayrollFileName] = useState('');
+  const [bankCsv, setBankCsv] = useState('');
+  const [bankFileName, setBankFileName] = useState('');
   const fileRef = useRef();
-  const expenseFileRef = useRef();
+  const stocktakeRef = useRef();
+  const payrollRef = useRef();
+  const bankRef = useRef();
 
   // ─── Health Check on Mount ───────────────────────────────────────────────
   useEffect(() => {
@@ -81,46 +87,49 @@ function App() {
     }
   };
 
-  // ─── Expense File Upload (CSV, Excel, JSON) ───────────────────────────
-  const handleExpenseFile = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    setExpenseFileName(file.name);
-    setError('');
-
+  // ─── Generic multi-format file reader ─────────────────────────────────
+  const readFileAsCsv = async (file) => {
     const ext = file.name.split('.').pop().toLowerCase();
-
-    try {
-      if (ext === 'xlsx' || ext === 'xls') {
-        const buf = await file.arrayBuffer();
-        const wb = XLSX.read(buf, { type: 'array' });
-        const ws = wb.Sheets[wb.SheetNames[0]];
-        const csv = XLSX.utils.sheet_to_csv(ws);
-        setExpenseCsvText(csv);
-      } else if (ext === 'json') {
-        const raw = await file.text();
-        const data = JSON.parse(raw);
-        const rows = Array.isArray(data) ? data : (data.data || data.rows || data.items || [data]);
-        if (!rows.length) throw new Error('JSON file has no data rows');
-        const headers = Object.keys(rows[0]);
-        const csvLines = [headers.join(',')];
-        for (const row of rows) {
-          csvLines.push(headers.map(h => {
-            const v = String(row[h] ?? '');
-            return v.includes(',') || v.includes('"') ? `"${v.replace(/"/g, '""')}"` : v;
-          }).join(','));
-        }
-        setExpenseCsvText(csvLines.join('\n'));
-      } else {
-        const text = await file.text();
-        setExpenseCsvText(text);
+    if (ext === 'xlsx' || ext === 'xls') {
+      const buf = await file.arrayBuffer();
+      const wb = XLSX.read(buf, { type: 'array' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      return XLSX.utils.sheet_to_csv(ws);
+    } else if (ext === 'json') {
+      const raw = await file.text();
+      const data = JSON.parse(raw);
+      const rows = Array.isArray(data) ? data : (data.data || data.rows || data.items || [data]);
+      if (!rows.length) throw new Error('No data rows found');
+      const headers = Object.keys(rows[0]);
+      const lines = [headers.join(',')];
+      for (const row of rows) {
+        lines.push(headers.map(h => {
+          const v = String(row[h] ?? '');
+          return v.includes(',') || v.includes('"') ? `"${v.replace(/"/g, '""')}"` : v;
+        }).join(','));
       }
-    } catch (err) {
-      setError(`Could not read expense file: ${err.message}`);
-      setExpenseCsvText('');
-      setExpenseFileName('');
+      return lines.join('\n');
+    } else {
+      return await file.text();
     }
   };
+
+  const makeFileHandler = (setFileName, setCsv, label) => async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setError('');
+    try {
+      const csv = await readFileAsCsv(file);
+      setFileName(file.name);
+      setCsv(csv);
+    } catch (err) {
+      setError(`Could not read ${label} file: ${err.message}`);
+    }
+  };
+
+  const handleStocktakeFile = makeFileHandler(setStocktakeFileName, setStocktakeCsv, 'stocktake');
+  const handlePayrollFile   = makeFileHandler(setPayrollFileName,   setPayrollCsv,   'payroll');
+  const handleBankFile      = makeFileHandler(setBankFileName,      setBankCsv,      'bank');
 
   const analyze = async (csvText) => {
     setLoading(true);
@@ -132,7 +141,9 @@ function App() {
         fixed_costs: parseFloat(fixedCosts) || 0,
         time_period_months: parseFloat(timePeriod) || 1,
       };
-      if (expenseCsvText) payload.expense_csv = expenseCsvText;
+      if (stocktakeCsv) payload.stocktake_csv = stocktakeCsv;
+      if (payrollCsv)   payload.payroll_csv   = payrollCsv;
+      if (bankCsv)      payload.bank_csv      = bankCsv;
       const res = await fetch(`${API_URL}/api/analyze`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -260,94 +271,109 @@ function App() {
         {activeTab === 'upload' && (
           <div className="bg-white border border-dark-600/50 rounded-2xl p-6 md:p-8 shadow-sm">
             <h2 className="text-xl font-semibold mb-2 text-xero-dark">Upload Cafe Data</h2>
-            <p className="text-sm text-gray-500 mb-6">Upload a CSV, Excel (.xlsx), or JSON file from your POS system. We auto-detect the format.</p>
+            <p className="text-sm text-gray-500 mb-6">Upload files from your POS, stocktake, payroll, and bank. Only Sales is required — each extra file unlocks deeper metrics.</p>
 
+            {/* Row 1: Sales + Time Period */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
               <div>
-                <label className="block text-sm text-gray-500 mb-2">Sales Data File <span className="text-red-400">*</span></label>
-                <input
-                  ref={fileRef}
-                  type="file"
-                  accept=".csv,.tsv,.txt,.xlsx,.xls,.json"
-                  onChange={handleFile}
-                  className="hidden"
-                />
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="w-5 h-5 rounded-full bg-xero-blue text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0">1</span>
+                  <label className="text-sm font-medium text-xero-dark">POS Sales File <span className="text-red-400">*</span></label>
+                </div>
+                <input ref={fileRef} type="file" accept=".csv,.tsv,.txt,.xlsx,.xls,.json" onChange={handleFile} className="hidden" />
                 <div className="flex gap-2">
-                  <button
-                    onClick={() => fileRef.current?.click()}
-                    className="flex-1 bg-dark-700 border border-dashed border-dark-600 rounded-xl py-3 px-4 text-gray-500 hover:border-xero-blue/50 hover:text-xero-dark transition-all text-left"
-                  >
-                    {fileName || 'Choose file (CSV, Excel, JSON)...'}
+                  <button onClick={() => fileRef.current?.click()}
+                    className="flex-1 bg-dark-700 border border-dashed border-dark-600 rounded-xl py-3 px-4 text-gray-500 hover:border-xero-blue/50 hover:text-xero-dark transition-all text-left text-sm truncate">
+                    {fileName || 'Square, Lightspeed, Toast, Clover…'}
                   </button>
-                  <button
-                    onClick={loadSample}
-                    className="text-xs text-xero-blue hover:text-xero-teal font-medium px-3 py-3 rounded-xl border border-dark-600/50 hover:border-xero-blue/30 transition-all whitespace-nowrap"
-                  >
-                    Use sample
+                  <button onClick={loadSample} className="text-xs text-xero-blue hover:text-xero-teal font-medium px-3 py-3 rounded-xl border border-dark-600/50 hover:border-xero-blue/30 transition-all whitespace-nowrap">
+                    Sample
                   </button>
                 </div>
+                <p className="text-[11px] text-gray-400 mt-1">CSV, Excel (.xlsx), or JSON</p>
               </div>
               <div>
-                <label className="block text-sm text-gray-500 mb-2">Data Time Period</label>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="w-5 h-5 rounded-full bg-gray-400 text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0">⏱</span>
+                  <label className="text-sm font-medium text-xero-dark">Data Time Period</label>
+                </div>
                 <div className="flex gap-2">
                   {[{v:'1',l:'1 Month'},{v:'3',l:'3 Months'},{v:'6',l:'6 Months'},{v:'12',l:'1 Year'}].map(({v,l}) => (
-                    <button
-                      key={v}
-                      onClick={() => setTimePeriod(v)}
+                    <button key={v} onClick={() => setTimePeriod(v)}
                       className={`flex-1 py-3 px-2 rounded-xl text-sm font-medium border transition-all ${
-                        timePeriod === v
-                          ? 'bg-xero-blue text-white border-xero-blue shadow-sm'
-                          : 'bg-dark-700 text-gray-500 border-dark-600 hover:border-xero-blue/50 hover:text-xero-dark'
-                      }`}
-                    >
-                      {l}
-                    </button>
+                        timePeriod === v ? 'bg-xero-blue text-white border-xero-blue shadow-sm' : 'bg-dark-700 text-gray-500 border-dark-600 hover:border-xero-blue/50 hover:text-xero-dark'
+                      }`}>{l}</button>
                   ))}
                 </div>
-                <p className="text-[11px] text-gray-400 mt-1.5">How much time does your sales data cover?</p>
               </div>
             </div>
 
+            {/* Row 2: Stocktake + Payroll */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
               <div>
-                <label className="block text-sm text-gray-500 mb-2">Expense / Cost File <span className="text-gray-400">(optional)</span></label>
-                <input
-                  ref={expenseFileRef}
-                  type="file"
-                  accept=".csv,.tsv,.txt,.xlsx,.xls,.json"
-                  onChange={handleExpenseFile}
-                  className="hidden"
-                />
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => expenseFileRef.current?.click()}
-                    className="flex-1 bg-dark-700 border border-dashed border-dark-600 rounded-xl py-3 px-4 text-gray-500 hover:border-xero-blue/50 hover:text-xero-dark transition-all text-left"
-                  >
-                    {expenseFileName || 'Choose expense file (optional)...'}
-                  </button>
-                  {expenseFileName && (
-                    <button
-                      onClick={() => { setExpenseCsvText(''); setExpenseFileName(''); if (expenseFileRef.current) expenseFileRef.current.value = ''; }}
-                      className="text-xs text-loss hover:text-red-700 font-medium px-3 py-3 rounded-xl border border-dark-600/50 hover:border-red-300 transition-all whitespace-nowrap"
-                    >
-                      Remove
-                    </button>
-                  )}
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="w-5 h-5 rounded-full bg-emerald-500 text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0">2</span>
+                  <label className="text-sm font-medium text-xero-dark">Stocktake Sheet <span className="text-gray-400 font-normal">(optional)</span></label>
                 </div>
-                <p className="text-[11px] text-gray-400 mt-1.5">Item costs, ingredient costs, or general expenses — we'll match them to your sales data.</p>
+                <input ref={stocktakeRef} type="file" accept=".csv,.tsv,.txt,.xlsx,.xls,.json" onChange={handleStocktakeFile} className="hidden" />
+                <div className="flex gap-2">
+                  <button onClick={() => stocktakeRef.current?.click()}
+                    className="flex-1 bg-dark-700 border border-dashed border-dark-600 rounded-xl py-3 px-4 text-gray-500 hover:border-emerald-400/50 hover:text-xero-dark transition-all text-left text-sm truncate">
+                    {stocktakeFileName || 'Opening stock, purchases, closing stock…'}
+                  </button>
+                  {stocktakeFileName && <button onClick={() => { setStocktakeCsv(''); setStocktakeFileName(''); if(stocktakeRef.current) stocktakeRef.current.value=''; }}
+                    className="text-xs text-loss px-3 py-3 rounded-xl border border-dark-600/50 hover:border-red-300 transition-all">✕</button>}
+                </div>
+                <p className="text-[11px] text-gray-400 mt-1">Unlocks <strong>True COGS</strong> — accounts for wastage &amp; purchases</p>
               </div>
               <div>
-                <label className="block text-sm text-gray-500 mb-2">Monthly Fixed Costs <span className="text-gray-400">(optional manual entry)</span></label>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="w-5 h-5 rounded-full bg-violet-500 text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0">3</span>
+                  <label className="text-sm font-medium text-xero-dark">Payroll Summary <span className="text-gray-400 font-normal">(optional)</span></label>
+                </div>
+                <input ref={payrollRef} type="file" accept=".csv,.tsv,.txt,.xlsx,.xls,.json" onChange={handlePayrollFile} className="hidden" />
+                <div className="flex gap-2">
+                  <button onClick={() => payrollRef.current?.click()}
+                    className="flex-1 bg-dark-700 border border-dashed border-dark-600 rounded-xl py-3 px-4 text-gray-500 hover:border-violet-400/50 hover:text-xero-dark transition-all text-left text-sm truncate">
+                    {payrollFileName || 'Staff wages, hours, pay runs…'}
+                  </button>
+                  {payrollFileName && <button onClick={() => { setPayrollCsv(''); setPayrollFileName(''); if(payrollRef.current) payrollRef.current.value=''; }}
+                    className="text-xs text-loss px-3 py-3 rounded-xl border border-dark-600/50 hover:border-red-300 transition-all">✕</button>}
+                </div>
+                <p className="text-[11px] text-gray-400 mt-1">Unlocks <strong>Labour %</strong> and <strong>Prime Cost %</strong></p>
+              </div>
+            </div>
+
+            {/* Row 3: Bank + Fixed Costs */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+              <div>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="w-5 h-5 rounded-full bg-amber-500 text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0">4</span>
+                  <label className="text-sm font-medium text-xero-dark">Bank Transactions <span className="text-gray-400 font-normal">(optional)</span></label>
+                </div>
+                <input ref={bankRef} type="file" accept=".csv,.tsv,.txt,.xlsx,.xls,.json" onChange={handleBankFile} className="hidden" />
+                <div className="flex gap-2">
+                  <button onClick={() => bankRef.current?.click()}
+                    className="flex-1 bg-dark-700 border border-dashed border-dark-600 rounded-xl py-3 px-4 text-gray-500 hover:border-amber-400/50 hover:text-xero-dark transition-all text-left text-sm truncate">
+                    {bankFileName || 'Bank statement export…'}
+                  </button>
+                  {bankFileName && <button onClick={() => { setBankCsv(''); setBankFileName(''); if(bankRef.current) bankRef.current.value=''; }}
+                    className="text-xs text-loss px-3 py-3 rounded-xl border border-dark-600/50 hover:border-red-300 transition-all">✕</button>}
+                </div>
+                <p className="text-[11px] text-gray-400 mt-1">Unlocks <strong>Expense Breakdown</strong> — rent, utilities, suppliers</p>
+              </div>
+              <div>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="w-5 h-5 rounded-full bg-gray-400 text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0">$</span>
+                  <label className="text-sm font-medium text-xero-dark">Monthly Fixed Costs <span className="text-gray-400 font-normal">(manual fallback)</span></label>
+                </div>
                 <div className="relative">
                   <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-semibold">$</span>
-                  <input
-                    type="number" min="0" value={fixedCosts}
-                    onChange={(e) => setFixedCosts(e.target.value)}
-                    placeholder="e.g. 3500 (rent, salaries, utilities)"
-                    className="w-full bg-dark-700 border border-dark-600 rounded-xl pl-8 pr-4 py-3 text-xero-dark focus:outline-none focus:border-xero-blue/50 focus:ring-1 focus:ring-xero-blue/20 transition-all"
-                  />
+                  <input type="number" min="0" value={fixedCosts} onChange={(e) => setFixedCosts(e.target.value)}
+                    placeholder="e.g. 3500"
+                    className="w-full bg-dark-700 border border-dark-600 rounded-xl pl-8 pr-4 py-3 text-xero-dark focus:outline-none focus:border-xero-blue/50 focus:ring-1 focus:ring-xero-blue/20 transition-all" />
                 </div>
-                <p className="text-[11px] text-gray-400 mt-1.5">Rent, wages, utilities — not included in sales data.</p>
+                <p className="text-[11px] text-gray-400 mt-1">Rent, overheads — use if no bank file uploaded</p>
               </div>
             </div>
 
@@ -413,9 +439,19 @@ function App() {
                     Add cost data for margin analysis
                   </span>
                 )}
-                {results.expense_file_used && (
-                  <span className="text-[11px] bg-green-50 text-green-700 px-2.5 py-1 rounded border border-green-200 font-medium">
-                    Expense file applied ({results.expense_items_matched} items matched{results.expense_general_added > 0 ? `, $${results.expense_general_added.toLocaleString()} added to overheads` : ''})
+                {results.stocktake_used && (
+                  <span className="text-[11px] bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded border border-emerald-200 font-medium">
+                    ✓ Stocktake — True COGS ${results.stocktake_data?.true_cogs?.toLocaleString()}
+                  </span>
+                )}
+                {results.payroll_used && (
+                  <span className="text-[11px] bg-violet-50 text-violet-700 px-2.5 py-1 rounded border border-violet-200 font-medium">
+                    ✓ Payroll — Labour ${results.metrics.summary.labour_cost?.toLocaleString()} ({results.metrics.summary.labour_pct}%)
+                  </span>
+                )}
+                {results.bank_used && (
+                  <span className="text-[11px] bg-amber-50 text-amber-700 px-2.5 py-1 rounded border border-amber-200 font-medium">
+                    ✓ Bank — ${results.metrics.summary.bank_expenses?.toLocaleString()} expenses
                   </span>
                 )}
               </div>
@@ -456,6 +492,23 @@ function App() {
               <XeroKPI label="Break-even" value={`${s.break_even_units} units`} sub="to cover fixed costs" />
               <XeroKPI label="Daily Avg Revenue" value={`$${s.avg_daily_revenue}`} sub={`${s.avg_daily_transactions} txns/day`} />
             </div>
+
+            {(s.labour_cost > 0 || s.prime_cost > 0) && (
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                {s.labour_cost > 0 && (
+                  <XeroKPI label="Labour Cost" value={`$${s.labour_cost?.toLocaleString()}`} sub={`${s.labour_pct}% of revenue`} color={s.labour_pct <= 35 ? 'gain' : s.labour_pct <= 40 ? 'accent' : 'loss'} />
+                )}
+                {s.labour_cost > 0 && (
+                  <XeroKPI label="Labour %" value={`${s.labour_pct}%`} sub="Benchmark: 30–35%" color={s.labour_pct <= 35 ? 'gain' : s.labour_pct <= 40 ? 'accent' : 'loss'} />
+                )}
+                {s.prime_cost > 0 && (
+                  <XeroKPI label="Prime Cost" value={`$${s.prime_cost?.toLocaleString()}`} sub="COGS + Labour" />
+                )}
+                {s.prime_cost > 0 && (
+                  <XeroKPI label="Prime Cost %" value={`${s.prime_cost_pct}%`} sub="Benchmark: <60%" color={s.prime_cost_pct < 60 ? 'gain' : s.prime_cost_pct < 70 ? 'accent' : 'loss'} />
+                )}
+              </div>
+            )}
 
             {/* Profit & Loss */}
             <div className="bg-white border border-dark-600/30 rounded-lg overflow-hidden shadow-sm">
@@ -576,6 +629,41 @@ function App() {
                         <td className="px-5 py-2.5 text-right font-semibold text-xero-dark">{s.gross_margin_pct}%</td>
                       </tr>
                     </tfoot>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* Bank Expense Breakdown */}
+            {results.bank_used && results.metrics.expense_categories && Object.keys(results.metrics.expense_categories).length > 0 && (
+              <div className="bg-white border border-dark-600/30 rounded-lg overflow-hidden shadow-sm">
+                <div className="h-1 bg-amber-400"></div>
+                <div className="px-5 pt-4 pb-2">
+                  <h3 className="text-sm font-semibold text-xero-dark uppercase tracking-wide">Bank Expense Breakdown</h3>
+                  <p className="text-[11px] text-gray-400 mt-0.5">Total: ${s.bank_expenses?.toLocaleString()} from bank transactions</p>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-[11px] text-gray-400 uppercase tracking-wider border-b border-dark-600/30">
+                        <th className="text-left px-5 pb-2">Category</th>
+                        <th className="text-right px-5 pb-2">Amount</th>
+                        <th className="text-right px-5 pb-2">% of Expenses</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {Object.entries(results.metrics.expense_categories)
+                        .sort(([,a],[,b]) => b - a)
+                        .map(([cat, amt]) => (
+                          <tr key={cat} className="border-b border-dark-600/20 last:border-0">
+                            <td className="px-5 py-2.5 font-medium text-xero-dark">{cat}</td>
+                            <td className="px-5 py-2.5 text-right text-xero-dark">${amt.toLocaleString()}</td>
+                            <td className="px-5 py-2.5 text-right text-gray-500">
+                              {s.bank_expenses > 0 ? ((amt / s.bank_expenses) * 100).toFixed(1) : '0.0'}%
+                            </td>
+                          </tr>
+                        ))}
+                    </tbody>
                   </table>
                 </div>
               </div>
