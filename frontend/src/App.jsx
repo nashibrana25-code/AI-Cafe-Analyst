@@ -152,7 +152,7 @@ function App() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Analysis failed');
       setResults(data);
-      setActiveTab('report');
+      setActiveTab('dashboard');
     } catch (err) {
       setError(err.message);
     } finally {
@@ -324,18 +324,18 @@ Ava Taylor,Barista,January 2026,140,24.00,3360.00`;
 
         {/* Tabs */}
         <div className="flex gap-1 mb-8 bg-dark-700 rounded-xl p-1 w-fit">
-          {['upload', 'report', 'ai'].map((tab) => (
+          {['upload', 'dashboard', 'report', 'ai'].map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
               disabled={tab !== 'upload' && !results}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all capitalize ${
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                 activeTab === tab
                   ? 'bg-white text-xero-dark shadow-sm'
                   : 'text-gray-500 hover:text-xero-dark disabled:opacity-30 disabled:cursor-not-allowed'
               }`}
             >
-              {tab === 'ai' ? 'AI Insights' : tab}
+              {{'upload':'Upload','dashboard':'📊 Dashboard','report':'Report','ai':'AI Insights'}[tab]}
             </button>
           ))}
         </div>
@@ -493,6 +493,11 @@ Ava Taylor,Barista,January 2026,140,24.00,3360.00`;
               <div className="mt-6 bg-red-50 border border-red-200 rounded-xl p-4 text-loss text-sm">{error}</div>
             )}
           </div>
+        )}
+
+        {/* Dashboard Tab */}
+        {activeTab === 'dashboard' && results && (
+          <KPIDashboard results={results} />
         )}
 
         {/* Report Tab — Xero-style */}
@@ -883,6 +888,266 @@ function StatusBadge({ label, status }) {
       </span>
       <span className="text-[10px] text-gray-500 font-medium">{label}:</span>
       <span className="text-[10px] text-xero-dark font-semibold">{c.text}</span>
+    </div>
+  );
+}
+
+// ─── Health Score Calculator ─────────────────────────────────────────────────
+function computeHealthScore(s) {
+  const scores = [];
+  if (s.total_cogs > 0 && s.total_revenue > 0) {
+    const fc = s.food_cost_pct;
+    scores.push(fc <= 28 ? 100 : fc <= 32 ? 85 : fc <= 35 ? 65 : fc <= 38 ? 40 : 15);
+  }
+  const gm = s.gross_margin_pct;
+  scores.push(gm >= 70 ? 100 : gm >= 65 ? 85 : gm >= 55 ? 60 : gm >= 45 ? 35 : 10);
+  const nm = s.net_margin_pct;
+  scores.push(nm >= 15 ? 100 : nm >= 10 ? 85 : nm >= 5 ? 60 : nm >= 0 ? 30 : 5);
+  if (s.labour_pct > 0) {
+    const lp = s.labour_pct;
+    scores.push(lp <= 30 ? 100 : lp <= 35 ? 85 : lp <= 40 ? 55 : lp <= 45 ? 30 : 10);
+  }
+  if (s.prime_cost_pct > 0) {
+    const pc = s.prime_cost_pct;
+    scores.push(pc <= 55 ? 100 : pc <= 60 ? 80 : pc <= 65 ? 55 : pc <= 70 ? 30 : 10);
+  }
+  return scores.length ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : 50;
+}
+
+// ─── KPI Dashboard Component ─────────────────────────────────────────────────
+function KPIDashboard({ results }) {
+  const s = results.metrics.summary;
+  const tp = results.time_period_months || 1;
+  const PERIOD_LABELS = { '1': '1 Month', '3': '3 Months', '6': '6 Months', '12': '1 Year' };
+  const POS_LABELS = { square: 'Square POS', square_summary: 'Square Summary', lightspeed: 'Lightspeed', toast: 'Toast', clover: 'Clover', shopify: 'Shopify', generic: 'Custom CSV' };
+
+  const score = computeHealthScore(s);
+  const scoreColor = score >= 75 ? '#1dab57' : score >= 55 ? '#f59e0b' : '#d94a4a';
+  const scoreLabel = score >= 75 ? 'Healthy' : score >= 55 ? 'Needs Work' : 'At Risk';
+  const CIRC = 263.9;
+  const dash = (score / 100) * CIRC;
+
+  const dailyData = Object.entries(results.metrics.daily || {})
+    .sort(([a], [b]) => a.localeCompare(b))
+    .slice(-31);
+  const maxDaily = Math.max(...dailyData.map(([, d]) => d.revenue), 1);
+
+  const cats = Object.entries(results.metrics.categories || {})
+    .sort(([, a], [, b]) => b.revenue - a.revenue)
+    .slice(0, 6);
+
+  const topItems = results.metrics.top_items?.slice(0, 6) || [];
+  const maxItemProfit = Math.max(...topItems.map(i => i.profit), 1);
+  const maxItemRevenue = Math.max(...topItems.map(i => i.revenue), 1);
+
+  const benchmarks = [
+    { label: 'Food Cost %', value: s.food_cost_pct, max: 60, good: v => v <= 32, ok: v => v <= 38, benchmark: '28–32%' },
+    { label: 'Gross Margin %', value: s.gross_margin_pct, max: 100, good: v => v >= 65, ok: v => v >= 50, benchmark: '65–70%', invert: true },
+    { label: 'Net Margin %', value: s.net_margin_pct, max: 30, good: v => v >= 10, ok: v => v >= 5, benchmark: '5–15%', invert: true },
+  ];
+  if (s.labour_pct > 0) benchmarks.push({ label: 'Labour %', value: s.labour_pct, max: 60, good: v => v <= 35, ok: v => v <= 40, benchmark: '30–35%' });
+  if (s.prime_cost_pct > 0) benchmarks.push({ label: 'Prime Cost %', value: s.prime_cost_pct, max: 100, good: v => v <= 60, ok: v => v <= 70, benchmark: '<60%' });
+
+  const CAT_COLORS = ['#13B5EA', '#1dab57', '#8b5cf6', '#f59e0b', '#ef4444', '#0CAADC'];
+
+  return (
+    <div className="space-y-5">
+      {/* Header */}
+      <div className="bg-white border border-dark-600/30 rounded-lg overflow-hidden shadow-sm">
+        <div className="h-1 bg-gradient-to-r from-xero-blue to-xero-teal"></div>
+        <div className="px-5 py-3">
+          <h2 className="text-base font-semibold text-xero-dark">KPI Dashboard</h2>
+          <p className="text-xs text-gray-400 mt-0.5">
+            {results.rows_processed} transactions
+            {' · '}{s.num_days} day{s.num_days !== 1 ? 's' : ''}
+            {' · '}{PERIOD_LABELS[String(tp)] || `${tp} months`}
+            {results.pos_format_detected && ` · ${POS_LABELS[results.pos_format_detected] || results.pos_format_detected}`}
+          </p>
+        </div>
+      </div>
+
+      {/* Row 1: Health Score + Benchmarks */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        {/* Health Score Ring */}
+        <div className="bg-white border border-dark-600/30 rounded-lg overflow-hidden shadow-sm">
+          <div className="h-1" style={{ backgroundColor: scoreColor }}></div>
+          <div className="p-6 flex flex-col items-center justify-center">
+            <p className="text-[11px] text-gray-400 uppercase tracking-wider mb-4">Cafe Health Score</p>
+            <svg viewBox="0 0 100 100" className="w-36 h-36">
+              <circle cx="50" cy="50" r="42" fill="none" stroke="#edf0f5" strokeWidth="9" />
+              <circle
+                cx="50" cy="50" r="42" fill="none"
+                stroke={scoreColor} strokeWidth="9" strokeLinecap="round"
+                strokeDasharray={`${dash} ${CIRC}`}
+                transform="rotate(-90 50 50)"
+              />
+              <text x="50" y="47" textAnchor="middle" fill="#1B2A4A" fontSize="24" fontWeight="bold" fontFamily="system-ui, sans-serif">{score}</text>
+              <text x="50" y="61" textAnchor="middle" fill="#9ca3af" fontSize="10" fontFamily="system-ui, sans-serif">/100</text>
+            </svg>
+            <p className="text-base font-bold mt-2" style={{ color: scoreColor }}>{scoreLabel}</p>
+            <p className="text-[11px] text-gray-400 mt-1 text-center max-w-[160px]">Based on {benchmarks.length} margin metrics vs industry</p>
+          </div>
+        </div>
+
+        {/* Benchmark Bars */}
+        <div className="lg:col-span-2 bg-white border border-dark-600/30 rounded-lg overflow-hidden shadow-sm">
+          <div className="h-1 bg-xero-blue"></div>
+          <div className="px-5 pt-4 pb-2">
+            <h3 className="text-sm font-semibold text-xero-dark uppercase tracking-wide">Industry Benchmarks</h3>
+            <p className="text-[11px] text-gray-400 mt-0.5">How your key metrics compare</p>
+          </div>
+          <div className="px-5 pb-5 space-y-4">
+            {benchmarks.map((b) => {
+              const isGood = b.good(b.value);
+              const isOk = !isGood && b.ok(b.value);
+              const barColor = isGood ? '#1dab57' : isOk ? '#f59e0b' : '#d94a4a';
+              const clampedPct = Math.min(Math.max((Math.abs(b.value) / b.max) * 100, 0), 100);
+              return (
+                <div key={b.label}>
+                  <div className="flex justify-between items-center mb-1.5">
+                    <span className="text-xs font-medium text-xero-dark">{b.label}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-bold tabular-nums" style={{ color: barColor }}>{b.value}%</span>
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold border ${
+                        isGood ? 'bg-green-50 text-green-700 border-green-200' : isOk ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-red-50 text-red-700 border-red-200'
+                      }`}>
+                        {isGood ? '✓' : isOk ? '~' : '!'} target {b.benchmark}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="h-2.5 bg-dark-700 rounded-full overflow-hidden">
+                    <div className="h-full rounded-full" style={{ width: `${clampedPct}%`, backgroundColor: barColor, transition: 'width 0.8s ease' }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* Row 2: Summary KPI strip */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        {[
+          { label: 'Total Revenue', value: `$${s.total_revenue.toLocaleString()}` },
+          { label: 'Gross Profit', value: `$${s.gross_profit.toLocaleString()}`, color: s.gross_profit >= 0 ? 'gain' : 'loss' },
+          { label: 'Net Profit', value: `$${s.net_profit.toLocaleString()}`, color: s.net_profit >= 0 ? 'gain' : 'loss' },
+          { label: 'Avg Order', value: `$${s.avg_order_value}` },
+          { label: 'Units Sold', value: s.total_units_sold.toLocaleString() },
+          { label: 'Daily Revenue', value: `$${s.avg_daily_revenue}`, sub: `${s.avg_daily_transactions} txns/day` },
+        ].map(kpi => (
+          <XeroKPI key={kpi.label} label={kpi.label} value={kpi.value} sub={kpi.sub} color={kpi.color} />
+        ))}
+      </div>
+
+      {/* Row 3: Daily Revenue Chart + Category Bars */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        {/* Daily Revenue Bar Chart */}
+        {dailyData.length > 0 && (
+          <div className="bg-white border border-dark-600/30 rounded-lg overflow-hidden shadow-sm">
+            <div className="h-1 bg-xero-teal"></div>
+            <div className="px-5 pt-4 pb-3">
+              <h3 className="text-sm font-semibold text-xero-dark uppercase tracking-wide">Daily Revenue</h3>
+              <p className="text-[11px] text-gray-400 mt-0.5">Avg ${s.avg_daily_revenue} / day over {dailyData.length} days</p>
+            </div>
+            <div className="px-4 pb-4">
+              <div className="flex items-end gap-px" style={{ height: '112px' }}>
+                {dailyData.map(([date, d]) => {
+                  const heightPct = Math.max((d.revenue / maxDaily) * 100, 2);
+                  const isAboveAvg = d.revenue >= s.avg_daily_revenue;
+                  return (
+                    <div key={date} className="flex-1 relative group flex flex-col justify-end" style={{ height: '100%' }}>
+                      <div
+                        className="w-full rounded-t transition-all"
+                        style={{ height: `${heightPct}%`, backgroundColor: isAboveAvg ? '#13B5EA' : '#0CAADC88' }}
+                      />
+                      <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 hidden group-hover:block z-10 bg-xero-dark text-white text-[9px] px-1.5 py-1 rounded whitespace-nowrap pointer-events-none">
+                        {date.slice(5)} — ${d.revenue.toLocaleString()}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="flex justify-between mt-1.5 text-[9px] text-gray-400">
+                <span>{dailyData[0]?.[0]?.slice(5)}</span>
+                {dailyData.length > 2 && <span>{dailyData[Math.floor(dailyData.length / 2)]?.[0]?.slice(5)}</span>}
+                <span>{dailyData[dailyData.length - 1]?.[0]?.slice(5)}</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Revenue by Category */}
+        {cats.length > 0 && (
+          <div className="bg-white border border-dark-600/30 rounded-lg overflow-hidden shadow-sm">
+            <div className="h-1 bg-violet-500"></div>
+            <div className="px-5 pt-4 pb-2">
+              <h3 className="text-sm font-semibold text-xero-dark uppercase tracking-wide">Revenue by Category</h3>
+              <p className="text-[11px] text-gray-400 mt-0.5">Revenue share &amp; gross margin per category</p>
+            </div>
+            <div className="px-5 pb-5 space-y-3.5">
+              {cats.map(([cat, d], i) => {
+                const revenueShare = s.total_revenue > 0 ? (d.revenue / s.total_revenue) * 100 : 0;
+                const margin = d.revenue > 0 ? (d.profit / d.revenue) * 100 : 0;
+                return (
+                  <div key={cat}>
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="text-xs font-medium text-xero-dark truncate max-w-[130px]">{cat}</span>
+                      <div className="flex items-center gap-2 text-[11px] shrink-0">
+                        <span className="font-semibold text-xero-dark">${d.revenue.toLocaleString()}</span>
+                        <span className="text-gray-400">{revenueShare.toFixed(0)}% share</span>
+                        <span className={margin >= 60 ? 'text-gain font-semibold' : margin >= 35 ? 'text-amber-500' : 'text-loss'}>{margin.toFixed(0)}% margin</span>
+                      </div>
+                    </div>
+                    <div className="h-2 bg-dark-700 rounded-full overflow-hidden">
+                      <div className="h-full rounded-full" style={{ width: `${revenueShare}%`, backgroundColor: CAT_COLORS[i % CAT_COLORS.length], transition: 'width 0.8s ease' }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Row 4: Top Items dual bar */}
+      {topItems.length > 0 && (
+        <div className="bg-white border border-dark-600/30 rounded-lg overflow-hidden shadow-sm">
+          <div className="h-1 bg-gain"></div>
+          <div className="px-5 pt-4 pb-2 flex justify-between items-start">
+            <div>
+              <h3 className="text-sm font-semibold text-xero-dark uppercase tracking-wide">Top Items by Profit</h3>
+              <p className="text-[11px] text-gray-400 mt-0.5">
+                <span className="inline-block w-2.5 h-2 rounded-sm bg-gain mr-1"></span>Profit
+                <span className="inline-block w-2.5 h-2 rounded-sm bg-xero-blue/25 mr-1 ml-3"></span>Revenue
+              </p>
+            </div>
+          </div>
+          <div className="px-5 pb-5 space-y-3.5">
+            {topItems.map((item, i) => {
+              const profitBar = Math.max((item.profit / maxItemProfit) * 100, 0);
+              const revBar = Math.max((item.revenue / maxItemRevenue) * 100, 0);
+              const itemMargin = item.revenue > 0 ? (item.profit / item.revenue) * 100 : 0;
+              return (
+                <div key={i}>
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="text-xs font-medium text-xero-dark truncate max-w-[200px]">{item.name}</span>
+                    <div className="flex items-center gap-3 text-[11px] shrink-0">
+                      <span className="text-gray-400">{item.quantity} sold</span>
+                      <span className="text-gray-500">${item.revenue.toLocaleString()}</span>
+                      <span className="font-bold text-gain">${item.profit.toLocaleString()}</span>
+                      <span className={`font-semibold ${itemMargin >= 60 ? 'text-gain' : itemMargin >= 35 ? 'text-amber-500' : 'text-loss'}`}>{itemMargin.toFixed(0)}%</span>
+                    </div>
+                  </div>
+                  <div className="relative h-2.5 bg-dark-700 rounded-full overflow-hidden">
+                    <div className="absolute inset-y-0 left-0 rounded-full bg-xero-blue/25" style={{ width: `${revBar}%` }} />
+                    <div className="absolute inset-y-0 left-0 rounded-full bg-gain" style={{ width: `${profitBar}%`, transition: 'width 0.8s ease' }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
