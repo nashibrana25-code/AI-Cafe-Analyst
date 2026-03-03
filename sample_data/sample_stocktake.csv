@@ -1,0 +1,23 @@
+item,unit,unit_cost,opening_qty,purchases,closing_qty,opening_value,purchases_value,closing_value
+Coffee Beans (kg),kg,28.00,15,40,12,420.00,1120.00,336.00
+Full Cream Milk (L),litre,1.80,40,120,35,72.00,216.00,63.00
+Oat Milk (L),litre,2.50,20,60,18,50.00,150.00,45.00
+Almond Milk (L),litre,3.00,10,30,9,30.00,90.00,27.00
+Soy Milk (L),litre,2.20,12,36,10,26.40,79.20,22.00
+Chai Concentrate (L),litre,12.00,4,10,3,48.00,120.00,36.00
+Sugar Syrup (L),litre,8.00,3,8,2,24.00,64.00,16.00
+Disposable Cups 8oz,unit,0.18,200,600,150,36.00,108.00,27.00
+Disposable Cups 12oz,unit,0.22,300,800,250,66.00,176.00,55.00
+Lids,unit,0.08,500,1500,400,40.00,120.00,32.00
+Croissants (each),unit,1.50,30,200,25,45.00,300.00,37.50
+Banana Bread (loaf),unit,4.50,10,60,8,45.00,270.00,36.00
+Sourdough Bread (loaf),unit,5.00,8,40,6,40.00,200.00,30.00
+Free Range Eggs (dozen),dozen,6.50,5,20,4,32.50,130.00,26.00
+Avocados (each),unit,1.20,15,80,10,18.00,96.00,12.00
+Smoked Salmon (kg),kg,32.00,2,8,1.5,64.00,256.00,48.00
+Hollandaise Sauce (kg),kg,14.00,2,6,1.5,28.00,84.00,21.00
+Mixed Greens (kg),kg,8.00,3,12,2,24.00,96.00,16.00
+Butter (kg),kg,9.00,2,8,1.5,18.00,72.00,13.50
+Take-away Bags,unit,0.12,200,800,180,24.00,96.00,21.60
+Napkins (pack),unit,3.50,5,20,4,17.50,70.00,14.00
+Cleaning Supplies,unit,2.00,10,30,8,20.00,60.00,16.00

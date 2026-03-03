@@ -198,6 +198,79 @@ function App() {
     setCsvText(csv);
   };
 
+  const loadSampleStocktake = () => {
+    const csv = `item,unit,unit_cost,opening_qty,purchases,closing_qty
+Coffee Beans (kg),kg,28.00,15,40,12
+Full Cream Milk (L),litre,1.80,40,120,35
+Oat Milk (L),litre,2.50,20,60,18
+Almond Milk (L),litre,3.00,10,30,9
+Chai Concentrate (L),litre,12.00,4,10,3
+Croissants (each),unit,1.50,30,200,25
+Banana Bread (loaf),unit,4.50,10,60,8
+Sourdough Bread (loaf),unit,5.00,8,40,6
+Free Range Eggs (dozen),dozen,6.50,5,20,4
+Avocados (each),unit,1.20,15,80,10
+Smoked Salmon (kg),kg,32.00,2,8,1.5
+Butter (kg),kg,9.00,2,8,1.5
+Mixed Greens (kg),kg,8.00,3,12,2
+Disposable Cups 8oz,unit,0.18,200,600,150
+Disposable Cups 12oz,unit,0.22,300,800,250
+Packaging & Napkins,unit,0.15,400,1200,320`;
+    setStocktakeFileName('sample_stocktake.csv');
+    setStocktakeCsv(csv);
+  };
+
+  const loadSamplePayroll = () => {
+    const csv = `employee,role,pay_period,hours_worked,hourly_rate,gross_pay
+Emma Johnson,Head Barista,January 2026,160,28.50,4560.00
+Liam Chen,Barista,January 2026,152,24.00,3648.00
+Sophie Williams,Barista,January 2026,120,24.00,2880.00
+Noah Anderson,Kitchen Hand,January 2026,144,22.50,3240.00
+Olivia Martinez,Cafe Manager,January 2026,168,35.00,5880.00
+Jack Thompson,Casual Barista,January 2026,64,24.00,1536.00
+Mia Davis,Waitstaff,January 2026,128,22.50,2880.00
+Ethan Wilson,Kitchen Hand,January 2026,96,22.50,2160.00
+Isabella Brown,Casual Waitstaff,January 2026,48,22.50,1080.00
+Ava Taylor,Barista,January 2026,140,24.00,3360.00`;
+    setPayrollFileName('sample_payroll.csv');
+    setPayrollCsv(csv);
+  };
+
+  const loadSampleBank = () => {
+    const csv = `date,description,debit,credit
+2026-01-03,Melbourne Commercial Rent - January,3800.00,
+2026-01-04,ORIGIN ENERGY - electricity bill,420.00,
+2026-01-04,Five Senses Coffee - bean order,980.00,
+2026-01-05,Aussie Farmers Direct - produce,340.00,
+2026-01-07,Tip Top Bakery - pastries & bread,220.00,
+2026-01-08,Aus Dairy Co - milk order,185.00,
+2026-01-09,Cleaning Solutions Pty Ltd,95.00,
+2026-01-10,OPTUS - phone & internet,89.00,
+2026-01-10,Five Senses Coffee - bean order,840.00,
+2026-01-12,Instagram Ads - Jan campaign,150.00,
+2026-01-13,Aus Dairy Co - milk order,175.00,
+2026-01-14,Tip Top Bakery - pastries & bread,210.00,
+2026-01-15,Five Senses Coffee - bean order,920.00,
+2026-01-16,Aussie Farmers Direct - produce,310.00,
+2026-01-17,Allianz Insurance - public liability,220.00,
+2026-01-18,Cleaning Solutions Pty Ltd,95.00,
+2026-01-19,Aus Dairy Co - milk order,190.00,
+2026-01-20,Packaging Plus - cups & lids,385.00,
+2026-01-22,Five Senses Coffee - bean order,1080.00,
+2026-01-23,Aussie Farmers Direct - produce,295.00,
+2026-01-24,XERO - accounting software,65.00,
+2026-01-25,Cleaning Solutions Pty Ltd,95.00,
+2026-01-25,Aus Dairy Co - milk order,182.00,
+2026-01-26,Facebook Ads,100.00,
+2026-01-27,Tip Top Bakery - pastries & bread,215.00,
+2026-01-28,ANZ Bank Fee - merchant service,48.00,
+2026-01-29,Five Senses Coffee - bean order,760.00,
+2026-01-30,Aussie Farmers Direct - produce,320.00,
+2026-01-31,Aus Dairy Co - milk order,178.00`;
+    setBankFileName('sample_bank_transactions.csv');
+    setBankCsv(csv);
+  };
+
   const s = results?.metrics?.summary;
   const tp = results?.time_period_months || 1;
   const PERIOD_LABELS = {'1':'1 Month','3':'3 Months','6':'6 Months','12':'1 Year'};
@@ -321,6 +394,7 @@ function App() {
                     className="flex-1 bg-dark-700 border border-dashed border-dark-600 rounded-xl py-3 px-4 text-gray-500 hover:border-emerald-400/50 hover:text-xero-dark transition-all text-left text-sm truncate">
                     {stocktakeFileName || 'Opening stock, purchases, closing stock…'}
                   </button>
+                  <button onClick={loadSampleStocktake} className="text-xs text-emerald-600 hover:text-emerald-700 font-medium px-3 py-3 rounded-xl border border-dark-600/50 hover:border-emerald-300 transition-all whitespace-nowrap">Sample</button>
                   {stocktakeFileName && <button onClick={() => { setStocktakeCsv(''); setStocktakeFileName(''); if(stocktakeRef.current) stocktakeRef.current.value=''; }}
                     className="text-xs text-loss px-3 py-3 rounded-xl border border-dark-600/50 hover:border-red-300 transition-all">✕</button>}
                 </div>
@@ -337,6 +411,7 @@ function App() {
                     className="flex-1 bg-dark-700 border border-dashed border-dark-600 rounded-xl py-3 px-4 text-gray-500 hover:border-violet-400/50 hover:text-xero-dark transition-all text-left text-sm truncate">
                     {payrollFileName || 'Staff wages, hours, pay runs…'}
                   </button>
+                  <button onClick={loadSamplePayroll} className="text-xs text-violet-600 hover:text-violet-700 font-medium px-3 py-3 rounded-xl border border-dark-600/50 hover:border-violet-300 transition-all whitespace-nowrap">Sample</button>
                   {payrollFileName && <button onClick={() => { setPayrollCsv(''); setPayrollFileName(''); if(payrollRef.current) payrollRef.current.value=''; }}
                     className="text-xs text-loss px-3 py-3 rounded-xl border border-dark-600/50 hover:border-red-300 transition-all">✕</button>}
                 </div>
@@ -357,6 +432,7 @@ function App() {
                     className="flex-1 bg-dark-700 border border-dashed border-dark-600 rounded-xl py-3 px-4 text-gray-500 hover:border-amber-400/50 hover:text-xero-dark transition-all text-left text-sm truncate">
                     {bankFileName || 'Bank statement export…'}
                   </button>
+                  <button onClick={loadSampleBank} className="text-xs text-amber-600 hover:text-amber-700 font-medium px-3 py-3 rounded-xl border border-dark-600/50 hover:border-amber-300 transition-all whitespace-nowrap">Sample</button>
                   {bankFileName && <button onClick={() => { setBankCsv(''); setBankFileName(''); if(bankRef.current) bankRef.current.value=''; }}
                     className="text-xs text-loss px-3 py-3 rounded-xl border border-dark-600/50 hover:border-red-300 transition-all">✕</button>}
                 </div>
