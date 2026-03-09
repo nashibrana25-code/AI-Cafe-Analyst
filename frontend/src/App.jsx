@@ -163,36 +163,316 @@ function App() {
   // ─── Sample Data ─────────────────────────────────────────────────────
   const loadSample = () => {
     const csv = `date,item,category,price,cost,quantity
-2026-01-01,Flat White,Coffee,5.50,1.20,45
-2026-01-01,Cappuccino,Coffee,5.50,1.20,38
-2026-01-01,Long Black,Coffee,4.50,0.90,30
-2026-01-01,Croissant,Pastry,5.00,1.50,25
-2026-01-01,Banana Bread,Pastry,6.00,1.80,18
-2026-01-01,Avocado Toast,Food,16.00,5.50,22
-2026-01-01,Eggs Benedict,Food,19.00,6.00,15
-2026-01-01,Smoothie,Drinks,9.00,3.00,20
-2026-01-01,Iced Latte,Coffee,6.00,1.40,28
-2026-01-01,Chai Latte,Coffee,5.50,1.30,15
-2026-01-02,Flat White,Coffee,5.50,1.20,50
-2026-01-02,Cappuccino,Coffee,5.50,1.20,42
-2026-01-02,Long Black,Coffee,4.50,0.90,35
-2026-01-02,Croissant,Pastry,5.00,1.50,30
-2026-01-02,Banana Bread,Pastry,6.00,1.80,20
-2026-01-02,Avocado Toast,Food,16.00,5.50,25
-2026-01-02,Eggs Benedict,Food,19.00,6.00,18
-2026-01-02,Smoothie,Drinks,9.00,3.00,22
-2026-01-02,Iced Latte,Coffee,6.00,1.40,32
-2026-01-02,Chai Latte,Coffee,5.50,1.30,18
-2026-01-03,Flat White,Coffee,5.50,1.20,42
-2026-01-03,Cappuccino,Coffee,5.50,1.20,36
-2026-01-03,Long Black,Coffee,4.50,0.90,28
-2026-01-03,Croissant,Pastry,5.00,1.50,22
-2026-01-03,Banana Bread,Pastry,6.00,1.80,15
-2026-01-03,Avocado Toast,Food,16.00,5.50,20
-2026-01-03,Eggs Benedict,Food,19.00,6.00,12
-2026-01-03,Smoothie,Drinks,9.00,3.00,18
-2026-01-03,Iced Latte,Coffee,6.00,1.40,25
-2026-01-03,Chai Latte,Coffee,5.50,1.30,12`;
+2026-01-01,Flat White,Coffee,5.5,1.2,48
+2026-01-01,Cappuccino,Coffee,5.5,1.2,40
+2026-01-01,Long Black,Coffee,4.5,0.9,33
+2026-01-01,Iced Latte,Coffee,6.0,1.4,31
+2026-01-01,Chai Latte,Coffee,5.5,1.3,16
+2026-01-01,Croissant,Pastry,5.0,1.5,31
+2026-01-01,Banana Bread,Pastry,6.0,1.8,22
+2026-01-01,Avocado Toast,Food,16.0,5.5,25
+2026-01-01,Eggs Benedict,Food,19.0,6.0,18
+2026-01-01,Smoothie,Drinks,9.0,3.0,22
+2026-01-02,Flat White,Coffee,5.5,1.2,52
+2026-01-02,Cappuccino,Coffee,5.5,1.2,43
+2026-01-02,Long Black,Coffee,4.5,0.9,36
+2026-01-02,Iced Latte,Coffee,6.0,1.4,33
+2026-01-02,Chai Latte,Coffee,5.5,1.3,17
+2026-01-02,Croissant,Pastry,5.0,1.5,33
+2026-01-02,Banana Bread,Pastry,6.0,1.8,24
+2026-01-02,Avocado Toast,Food,16.0,5.5,27
+2026-01-02,Eggs Benedict,Food,19.0,6.0,19
+2026-01-02,Smoothie,Drinks,9.0,3.0,24
+2026-01-03,Flat White,Coffee,5.5,1.2,61
+2026-01-03,Cappuccino,Coffee,5.5,1.2,50
+2026-01-03,Long Black,Coffee,4.5,0.9,42
+2026-01-03,Iced Latte,Coffee,6.0,1.4,38
+2026-01-03,Chai Latte,Coffee,5.5,1.3,20
+2026-01-03,Croissant,Pastry,5.0,1.5,38
+2026-01-03,Banana Bread,Pastry,6.0,1.8,28
+2026-01-03,Avocado Toast,Food,16.0,5.5,31
+2026-01-03,Eggs Benedict,Food,19.0,6.0,22
+2026-01-03,Smoothie,Drinks,9.0,3.0,28
+2026-01-04,Flat White,Coffee,5.5,1.2,34
+2026-01-04,Cappuccino,Coffee,5.5,1.2,28
+2026-01-04,Long Black,Coffee,4.5,0.9,24
+2026-01-04,Iced Latte,Coffee,6.0,1.4,22
+2026-01-04,Chai Latte,Coffee,5.5,1.3,11
+2026-01-04,Croissant,Pastry,5.0,1.5,22
+2026-01-04,Banana Bread,Pastry,6.0,1.8,16
+2026-01-04,Avocado Toast,Food,16.0,5.5,17
+2026-01-04,Eggs Benedict,Food,19.0,6.0,12
+2026-01-04,Smoothie,Drinks,9.0,3.0,16
+2026-01-05,Flat White,Coffee,5.5,1.2,44
+2026-01-05,Cappuccino,Coffee,5.5,1.2,36
+2026-01-05,Long Black,Coffee,4.5,0.9,30
+2026-01-05,Iced Latte,Coffee,6.0,1.4,28
+2026-01-05,Chai Latte,Coffee,5.5,1.3,14
+2026-01-05,Croissant,Pastry,5.0,1.5,28
+2026-01-05,Banana Bread,Pastry,6.0,1.8,20
+2026-01-05,Avocado Toast,Food,16.0,5.5,22
+2026-01-05,Eggs Benedict,Food,19.0,6.0,16
+2026-01-05,Smoothie,Drinks,9.0,3.0,20
+2026-01-06,Flat White,Coffee,5.5,1.2,45
+2026-01-06,Cappuccino,Coffee,5.5,1.2,37
+2026-01-06,Long Black,Coffee,4.5,0.9,31
+2026-01-06,Iced Latte,Coffee,6.0,1.4,29
+2026-01-06,Chai Latte,Coffee,5.5,1.3,15
+2026-01-06,Croissant,Pastry,5.0,1.5,29
+2026-01-06,Banana Bread,Pastry,6.0,1.8,20
+2026-01-06,Avocado Toast,Food,16.0,5.5,23
+2026-01-06,Eggs Benedict,Food,19.0,6.0,16
+2026-01-06,Smoothie,Drinks,9.0,3.0,20
+2026-01-07,Flat White,Coffee,5.5,1.2,46
+2026-01-07,Cappuccino,Coffee,5.5,1.2,37
+2026-01-07,Long Black,Coffee,4.5,0.9,32
+2026-01-07,Iced Latte,Coffee,6.0,1.4,29
+2026-01-07,Chai Latte,Coffee,5.5,1.3,15
+2026-01-07,Croissant,Pastry,5.0,1.5,29
+2026-01-07,Banana Bread,Pastry,6.0,1.8,21
+2026-01-07,Avocado Toast,Food,16.0,5.5,23
+2026-01-07,Eggs Benedict,Food,19.0,6.0,17
+2026-01-07,Smoothie,Drinks,9.0,3.0,21
+2026-01-08,Flat White,Coffee,5.5,1.2,48
+2026-01-08,Cappuccino,Coffee,5.5,1.2,40
+2026-01-08,Long Black,Coffee,4.5,0.9,33
+2026-01-08,Iced Latte,Coffee,6.0,1.4,31
+2026-01-08,Chai Latte,Coffee,5.5,1.3,16
+2026-01-08,Croissant,Pastry,5.0,1.5,31
+2026-01-08,Banana Bread,Pastry,6.0,1.8,22
+2026-01-08,Avocado Toast,Food,16.0,5.5,25
+2026-01-08,Eggs Benedict,Food,19.0,6.0,18
+2026-01-08,Smoothie,Drinks,9.0,3.0,22
+2026-01-09,Flat White,Coffee,5.5,1.2,52
+2026-01-09,Cappuccino,Coffee,5.5,1.2,43
+2026-01-09,Long Black,Coffee,4.5,0.9,36
+2026-01-09,Iced Latte,Coffee,6.0,1.4,33
+2026-01-09,Chai Latte,Coffee,5.5,1.3,17
+2026-01-09,Croissant,Pastry,5.0,1.5,33
+2026-01-09,Banana Bread,Pastry,6.0,1.8,24
+2026-01-09,Avocado Toast,Food,16.0,5.5,27
+2026-01-09,Eggs Benedict,Food,19.0,6.0,19
+2026-01-09,Smoothie,Drinks,9.0,3.0,24
+2026-01-10,Flat White,Coffee,5.5,1.2,61
+2026-01-10,Cappuccino,Coffee,5.5,1.2,50
+2026-01-10,Long Black,Coffee,4.5,0.9,42
+2026-01-10,Iced Latte,Coffee,6.0,1.4,38
+2026-01-10,Chai Latte,Coffee,5.5,1.3,20
+2026-01-10,Croissant,Pastry,5.0,1.5,38
+2026-01-10,Banana Bread,Pastry,6.0,1.8,28
+2026-01-10,Avocado Toast,Food,16.0,5.5,31
+2026-01-10,Eggs Benedict,Food,19.0,6.0,22
+2026-01-10,Smoothie,Drinks,9.0,3.0,28
+2026-01-11,Flat White,Coffee,5.5,1.2,34
+2026-01-11,Cappuccino,Coffee,5.5,1.2,28
+2026-01-11,Long Black,Coffee,4.5,0.9,24
+2026-01-11,Iced Latte,Coffee,6.0,1.4,22
+2026-01-11,Chai Latte,Coffee,5.5,1.3,11
+2026-01-11,Croissant,Pastry,5.0,1.5,22
+2026-01-11,Banana Bread,Pastry,6.0,1.8,16
+2026-01-11,Avocado Toast,Food,16.0,5.5,17
+2026-01-11,Eggs Benedict,Food,19.0,6.0,12
+2026-01-11,Smoothie,Drinks,9.0,3.0,16
+2026-01-12,Flat White,Coffee,5.5,1.2,44
+2026-01-12,Cappuccino,Coffee,5.5,1.2,36
+2026-01-12,Long Black,Coffee,4.5,0.9,30
+2026-01-12,Iced Latte,Coffee,6.0,1.4,28
+2026-01-12,Chai Latte,Coffee,5.5,1.3,14
+2026-01-12,Croissant,Pastry,5.0,1.5,28
+2026-01-12,Banana Bread,Pastry,6.0,1.8,20
+2026-01-12,Avocado Toast,Food,16.0,5.5,22
+2026-01-12,Eggs Benedict,Food,19.0,6.0,16
+2026-01-12,Smoothie,Drinks,9.0,3.0,20
+2026-01-13,Flat White,Coffee,5.5,1.2,45
+2026-01-13,Cappuccino,Coffee,5.5,1.2,37
+2026-01-13,Long Black,Coffee,4.5,0.9,31
+2026-01-13,Iced Latte,Coffee,6.0,1.4,29
+2026-01-13,Chai Latte,Coffee,5.5,1.3,15
+2026-01-13,Croissant,Pastry,5.0,1.5,29
+2026-01-13,Banana Bread,Pastry,6.0,1.8,20
+2026-01-13,Avocado Toast,Food,16.0,5.5,23
+2026-01-13,Eggs Benedict,Food,19.0,6.0,16
+2026-01-13,Smoothie,Drinks,9.0,3.0,20
+2026-01-14,Flat White,Coffee,5.5,1.2,46
+2026-01-14,Cappuccino,Coffee,5.5,1.2,37
+2026-01-14,Long Black,Coffee,4.5,0.9,32
+2026-01-14,Iced Latte,Coffee,6.0,1.4,29
+2026-01-14,Chai Latte,Coffee,5.5,1.3,15
+2026-01-14,Croissant,Pastry,5.0,1.5,29
+2026-01-14,Banana Bread,Pastry,6.0,1.8,21
+2026-01-14,Avocado Toast,Food,16.0,5.5,23
+2026-01-14,Eggs Benedict,Food,19.0,6.0,17
+2026-01-14,Smoothie,Drinks,9.0,3.0,21
+2026-01-15,Flat White,Coffee,5.5,1.2,48
+2026-01-15,Cappuccino,Coffee,5.5,1.2,40
+2026-01-15,Long Black,Coffee,4.5,0.9,33
+2026-01-15,Iced Latte,Coffee,6.0,1.4,31
+2026-01-15,Chai Latte,Coffee,5.5,1.3,16
+2026-01-15,Croissant,Pastry,5.0,1.5,31
+2026-01-15,Banana Bread,Pastry,6.0,1.8,22
+2026-01-15,Avocado Toast,Food,16.0,5.5,25
+2026-01-15,Eggs Benedict,Food,19.0,6.0,18
+2026-01-15,Smoothie,Drinks,9.0,3.0,22
+2026-01-16,Flat White,Coffee,5.5,1.2,52
+2026-01-16,Cappuccino,Coffee,5.5,1.2,43
+2026-01-16,Long Black,Coffee,4.5,0.9,36
+2026-01-16,Iced Latte,Coffee,6.0,1.4,33
+2026-01-16,Chai Latte,Coffee,5.5,1.3,17
+2026-01-16,Croissant,Pastry,5.0,1.5,33
+2026-01-16,Banana Bread,Pastry,6.0,1.8,24
+2026-01-16,Avocado Toast,Food,16.0,5.5,27
+2026-01-16,Eggs Benedict,Food,19.0,6.0,19
+2026-01-16,Smoothie,Drinks,9.0,3.0,24
+2026-01-17,Flat White,Coffee,5.5,1.2,61
+2026-01-17,Cappuccino,Coffee,5.5,1.2,50
+2026-01-17,Long Black,Coffee,4.5,0.9,42
+2026-01-17,Iced Latte,Coffee,6.0,1.4,38
+2026-01-17,Chai Latte,Coffee,5.5,1.3,20
+2026-01-17,Croissant,Pastry,5.0,1.5,38
+2026-01-17,Banana Bread,Pastry,6.0,1.8,28
+2026-01-17,Avocado Toast,Food,16.0,5.5,31
+2026-01-17,Eggs Benedict,Food,19.0,6.0,22
+2026-01-17,Smoothie,Drinks,9.0,3.0,28
+2026-01-18,Flat White,Coffee,5.5,1.2,34
+2026-01-18,Cappuccino,Coffee,5.5,1.2,28
+2026-01-18,Long Black,Coffee,4.5,0.9,24
+2026-01-18,Iced Latte,Coffee,6.0,1.4,22
+2026-01-18,Chai Latte,Coffee,5.5,1.3,11
+2026-01-18,Croissant,Pastry,5.0,1.5,22
+2026-01-18,Banana Bread,Pastry,6.0,1.8,16
+2026-01-18,Avocado Toast,Food,16.0,5.5,17
+2026-01-18,Eggs Benedict,Food,19.0,6.0,12
+2026-01-18,Smoothie,Drinks,9.0,3.0,16
+2026-01-19,Flat White,Coffee,5.5,1.2,44
+2026-01-19,Cappuccino,Coffee,5.5,1.2,36
+2026-01-19,Long Black,Coffee,4.5,0.9,30
+2026-01-19,Iced Latte,Coffee,6.0,1.4,28
+2026-01-19,Chai Latte,Coffee,5.5,1.3,14
+2026-01-19,Croissant,Pastry,5.0,1.5,28
+2026-01-19,Banana Bread,Pastry,6.0,1.8,20
+2026-01-19,Avocado Toast,Food,16.0,5.5,22
+2026-01-19,Eggs Benedict,Food,19.0,6.0,16
+2026-01-19,Smoothie,Drinks,9.0,3.0,20
+2026-01-20,Flat White,Coffee,5.5,1.2,45
+2026-01-20,Cappuccino,Coffee,5.5,1.2,37
+2026-01-20,Long Black,Coffee,4.5,0.9,31
+2026-01-20,Iced Latte,Coffee,6.0,1.4,29
+2026-01-20,Chai Latte,Coffee,5.5,1.3,15
+2026-01-20,Croissant,Pastry,5.0,1.5,29
+2026-01-20,Banana Bread,Pastry,6.0,1.8,20
+2026-01-20,Avocado Toast,Food,16.0,5.5,23
+2026-01-20,Eggs Benedict,Food,19.0,6.0,16
+2026-01-20,Smoothie,Drinks,9.0,3.0,20
+2026-01-21,Flat White,Coffee,5.5,1.2,46
+2026-01-21,Cappuccino,Coffee,5.5,1.2,37
+2026-01-21,Long Black,Coffee,4.5,0.9,32
+2026-01-21,Iced Latte,Coffee,6.0,1.4,29
+2026-01-21,Chai Latte,Coffee,5.5,1.3,15
+2026-01-21,Croissant,Pastry,5.0,1.5,29
+2026-01-21,Banana Bread,Pastry,6.0,1.8,21
+2026-01-21,Avocado Toast,Food,16.0,5.5,23
+2026-01-21,Eggs Benedict,Food,19.0,6.0,17
+2026-01-21,Smoothie,Drinks,9.0,3.0,21
+2026-01-22,Flat White,Coffee,5.5,1.2,48
+2026-01-22,Cappuccino,Coffee,5.5,1.2,40
+2026-01-22,Long Black,Coffee,4.5,0.9,33
+2026-01-22,Iced Latte,Coffee,6.0,1.4,31
+2026-01-22,Chai Latte,Coffee,5.5,1.3,16
+2026-01-22,Croissant,Pastry,5.0,1.5,31
+2026-01-22,Banana Bread,Pastry,6.0,1.8,22
+2026-01-22,Avocado Toast,Food,16.0,5.5,25
+2026-01-22,Eggs Benedict,Food,19.0,6.0,18
+2026-01-22,Smoothie,Drinks,9.0,3.0,22
+2026-01-23,Flat White,Coffee,5.5,1.2,52
+2026-01-23,Cappuccino,Coffee,5.5,1.2,43
+2026-01-23,Long Black,Coffee,4.5,0.9,36
+2026-01-23,Iced Latte,Coffee,6.0,1.4,33
+2026-01-23,Chai Latte,Coffee,5.5,1.3,17
+2026-01-23,Croissant,Pastry,5.0,1.5,33
+2026-01-23,Banana Bread,Pastry,6.0,1.8,24
+2026-01-23,Avocado Toast,Food,16.0,5.5,27
+2026-01-23,Eggs Benedict,Food,19.0,6.0,19
+2026-01-23,Smoothie,Drinks,9.0,3.0,24
+2026-01-24,Flat White,Coffee,5.5,1.2,61
+2026-01-24,Cappuccino,Coffee,5.5,1.2,50
+2026-01-24,Long Black,Coffee,4.5,0.9,42
+2026-01-24,Iced Latte,Coffee,6.0,1.4,38
+2026-01-24,Chai Latte,Coffee,5.5,1.3,20
+2026-01-24,Croissant,Pastry,5.0,1.5,38
+2026-01-24,Banana Bread,Pastry,6.0,1.8,28
+2026-01-24,Avocado Toast,Food,16.0,5.5,31
+2026-01-24,Eggs Benedict,Food,19.0,6.0,22
+2026-01-24,Smoothie,Drinks,9.0,3.0,28
+2026-01-25,Flat White,Coffee,5.5,1.2,34
+2026-01-25,Cappuccino,Coffee,5.5,1.2,28
+2026-01-25,Long Black,Coffee,4.5,0.9,24
+2026-01-25,Iced Latte,Coffee,6.0,1.4,22
+2026-01-25,Chai Latte,Coffee,5.5,1.3,11
+2026-01-25,Croissant,Pastry,5.0,1.5,22
+2026-01-25,Banana Bread,Pastry,6.0,1.8,16
+2026-01-25,Avocado Toast,Food,16.0,5.5,17
+2026-01-25,Eggs Benedict,Food,19.0,6.0,12
+2026-01-25,Smoothie,Drinks,9.0,3.0,16
+2026-01-26,Flat White,Coffee,5.5,1.2,44
+2026-01-26,Cappuccino,Coffee,5.5,1.2,36
+2026-01-26,Long Black,Coffee,4.5,0.9,30
+2026-01-26,Iced Latte,Coffee,6.0,1.4,28
+2026-01-26,Chai Latte,Coffee,5.5,1.3,14
+2026-01-26,Croissant,Pastry,5.0,1.5,28
+2026-01-26,Banana Bread,Pastry,6.0,1.8,20
+2026-01-26,Avocado Toast,Food,16.0,5.5,22
+2026-01-26,Eggs Benedict,Food,19.0,6.0,16
+2026-01-26,Smoothie,Drinks,9.0,3.0,20
+2026-01-27,Flat White,Coffee,5.5,1.2,45
+2026-01-27,Cappuccino,Coffee,5.5,1.2,37
+2026-01-27,Long Black,Coffee,4.5,0.9,31
+2026-01-27,Iced Latte,Coffee,6.0,1.4,29
+2026-01-27,Chai Latte,Coffee,5.5,1.3,15
+2026-01-27,Croissant,Pastry,5.0,1.5,29
+2026-01-27,Banana Bread,Pastry,6.0,1.8,20
+2026-01-27,Avocado Toast,Food,16.0,5.5,23
+2026-01-27,Eggs Benedict,Food,19.0,6.0,16
+2026-01-27,Smoothie,Drinks,9.0,3.0,20
+2026-01-28,Flat White,Coffee,5.5,1.2,46
+2026-01-28,Cappuccino,Coffee,5.5,1.2,37
+2026-01-28,Long Black,Coffee,4.5,0.9,32
+2026-01-28,Iced Latte,Coffee,6.0,1.4,29
+2026-01-28,Chai Latte,Coffee,5.5,1.3,15
+2026-01-28,Croissant,Pastry,5.0,1.5,29
+2026-01-28,Banana Bread,Pastry,6.0,1.8,21
+2026-01-28,Avocado Toast,Food,16.0,5.5,23
+2026-01-28,Eggs Benedict,Food,19.0,6.0,17
+2026-01-28,Smoothie,Drinks,9.0,3.0,21
+2026-01-29,Flat White,Coffee,5.5,1.2,48
+2026-01-29,Cappuccino,Coffee,5.5,1.2,40
+2026-01-29,Long Black,Coffee,4.5,0.9,33
+2026-01-29,Iced Latte,Coffee,6.0,1.4,31
+2026-01-29,Chai Latte,Coffee,5.5,1.3,16
+2026-01-29,Croissant,Pastry,5.0,1.5,31
+2026-01-29,Banana Bread,Pastry,6.0,1.8,22
+2026-01-29,Avocado Toast,Food,16.0,5.5,25
+2026-01-29,Eggs Benedict,Food,19.0,6.0,18
+2026-01-29,Smoothie,Drinks,9.0,3.0,22
+2026-01-30,Flat White,Coffee,5.5,1.2,52
+2026-01-30,Cappuccino,Coffee,5.5,1.2,43
+2026-01-30,Long Black,Coffee,4.5,0.9,36
+2026-01-30,Iced Latte,Coffee,6.0,1.4,33
+2026-01-30,Chai Latte,Coffee,5.5,1.3,17
+2026-01-30,Croissant,Pastry,5.0,1.5,33
+2026-01-30,Banana Bread,Pastry,6.0,1.8,24
+2026-01-30,Avocado Toast,Food,16.0,5.5,27
+2026-01-30,Eggs Benedict,Food,19.0,6.0,19
+2026-01-30,Smoothie,Drinks,9.0,3.0,24
+2026-01-31,Flat White,Coffee,5.5,1.2,61
+2026-01-31,Cappuccino,Coffee,5.5,1.2,50
+2026-01-31,Long Black,Coffee,4.5,0.9,42
+2026-01-31,Iced Latte,Coffee,6.0,1.4,38
+2026-01-31,Chai Latte,Coffee,5.5,1.3,20
+2026-01-31,Croissant,Pastry,5.0,1.5,38
+2026-01-31,Banana Bread,Pastry,6.0,1.8,28
+2026-01-31,Avocado Toast,Food,16.0,5.5,31
+2026-01-31,Eggs Benedict,Food,19.0,6.0,22
+2026-01-31,Smoothie,Drinks,9.0,3.0,28`;
     setFixedCosts('3500');
     setFileName('sample_cafe_data.csv');
     setCsvText(csv);
@@ -200,22 +480,22 @@ function App() {
 
   const loadSampleStocktake = () => {
     const csv = `item,unit,unit_cost,opening_qty,purchases,closing_qty
-Coffee Beans (kg),kg,28.00,15,40,12
-Full Cream Milk (L),litre,1.80,40,120,35
-Oat Milk (L),litre,2.50,20,60,18
-Almond Milk (L),litre,3.00,10,30,9
-Chai Concentrate (L),litre,12.00,4,10,3
-Croissants (each),unit,1.50,30,200,25
-Banana Bread (loaf),unit,4.50,10,60,8
-Sourdough Bread (loaf),unit,5.00,8,40,6
-Free Range Eggs (dozen),dozen,6.50,5,20,4
-Avocados (each),unit,1.20,15,80,10
-Smoked Salmon (kg),kg,32.00,2,8,1.5
-Butter (kg),kg,9.00,2,8,1.5
-Mixed Greens (kg),kg,8.00,3,12,2
-Disposable Cups 8oz,unit,0.18,200,600,150
-Disposable Cups 12oz,unit,0.22,300,800,250
-Packaging & Napkins,unit,0.15,400,1200,320`;
+Coffee Beans (kg),kg,28.00,15,245,12
+Full Cream Milk (L),litre,1.80,40,580,35
+Oat Milk (L),litre,2.50,20,300,18
+Almond Milk (L),litre,3.00,10,150,9
+Chai Concentrate (L),litre,12.00,4,50,3
+Croissants (each),unit,1.50,30,950,25
+Banana Bread (loaf),unit,4.50,10,290,8
+Sourdough Bread (loaf),unit,5.00,8,200,6
+Free Range Eggs (dozen),dozen,6.50,5,95,4
+Avocados (each),unit,1.20,15,380,10
+Smoked Salmon (kg),kg,32.00,2,38,1.5
+Butter (kg),kg,9.00,2,38,1.5
+Mixed Greens (kg),kg,8.00,3,58,2
+Disposable Cups 8oz,unit,0.18,200,2800,150
+Disposable Cups 12oz,unit,0.22,300,3800,250
+Packaging & Napkins,unit,0.15,400,5900,320`;
     setStocktakeFileName('sample_stocktake.csv');
     setStocktakeCsv(csv);
   };
@@ -240,33 +520,20 @@ Ava Taylor,Barista,January 2026,140,24.00,3360.00`;
     const csv = `date,description,debit,credit
 2026-01-03,Melbourne Commercial Rent - January,3800.00,
 2026-01-04,ORIGIN ENERGY - electricity bill,420.00,
-2026-01-04,Five Senses Coffee - bean order,980.00,
-2026-01-05,Aussie Farmers Direct - produce,340.00,
-2026-01-07,Tip Top Bakery - pastries & bread,220.00,
-2026-01-08,Aus Dairy Co - milk order,185.00,
+2026-01-09,ADP Payroll - Staff wages week ending 09 Jan,7806.00,
 2026-01-09,Cleaning Solutions Pty Ltd,95.00,
-2026-01-10,OPTUS - phone & internet,89.00,
-2026-01-10,Five Senses Coffee - bean order,840.00,
+2026-01-10,OPTUS - phone and internet,89.00,
 2026-01-12,Instagram Ads - Jan campaign,150.00,
-2026-01-13,Aus Dairy Co - milk order,175.00,
-2026-01-14,Tip Top Bakery - pastries & bread,210.00,
-2026-01-15,Five Senses Coffee - bean order,920.00,
-2026-01-16,Aussie Farmers Direct - produce,310.00,
-2026-01-17,Allianz Insurance - public liability,220.00,
+2026-01-16,ADP Payroll - Staff wages week ending 16 Jan,7806.00,
+2026-01-17,Allianz Insurance - public liability quarterly,275.00,
 2026-01-18,Cleaning Solutions Pty Ltd,95.00,
-2026-01-19,Aus Dairy Co - milk order,190.00,
-2026-01-20,Packaging Plus - cups & lids,385.00,
-2026-01-22,Five Senses Coffee - bean order,1080.00,
-2026-01-23,Aussie Farmers Direct - produce,295.00,
+2026-01-20,Packaging Plus - cups lids and takeaway,385.00,
+2026-01-23,ADP Payroll - Staff wages week ending 23 Jan,7806.00,
 2026-01-24,XERO - accounting software,65.00,
+2026-01-25,Facebook Ads - January,100.00,
 2026-01-25,Cleaning Solutions Pty Ltd,95.00,
-2026-01-25,Aus Dairy Co - milk order,182.00,
-2026-01-26,Facebook Ads,100.00,
-2026-01-27,Tip Top Bakery - pastries & bread,215.00,
-2026-01-28,ANZ Bank Fee - merchant service,48.00,
-2026-01-29,Five Senses Coffee - bean order,760.00,
-2026-01-30,Aussie Farmers Direct - produce,320.00,
-2026-01-31,Aus Dairy Co - milk order,178.00`;
+2026-01-28,ANZ Bank Fee - merchant service fee,48.00,
+2026-01-30,ADP Payroll - Staff wages week ending 30 Jan,7806.00`;
     setBankFileName('sample_bank_transactions.csv');
     setBankCsv(csv);
   };
