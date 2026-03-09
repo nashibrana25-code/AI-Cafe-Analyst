@@ -8,6 +8,15 @@ Upload your sales CSV → get instant P&L, margin analysis, and AI-driven recomm
 
 ---
 
+## Screenshots
+
+![Dashboard](assets/dashboard.png)
+![Upload CSV](assets/upload-csv.png)
+![Reports](assets/reports.png)
+![AI Insights](assets/ai-insights.png)
+
+---
+
 ## What It Does
 
 ### 📊 Financial Analysis
